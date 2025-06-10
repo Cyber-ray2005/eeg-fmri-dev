@@ -45,7 +45,7 @@ class EEGVisualizer(QtWidgets.QMainWindow):
         self.timer.start(20)  # Update every 20 ms
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.connect(("127.0.0.1", 51244))
+        self.socket.connect(("127.0.0.1", 50000))
         self.socket.setblocking(False)
 
     def update_plot(self):
@@ -73,7 +73,7 @@ class EEGVisualizer(QtWidgets.QMainWindow):
             eeg_data_bytes = self.num_channels * num_samples * 4
             flat_data = np.frombuffer(payload[12:12 + eeg_data_bytes], dtype=np.float32).copy()
             eeg_matrix = flat_data.reshape((self.num_channels, num_samples))
-            eeg_matrix /= 1e6
+            # eeg_matrix /= 1e6
 
             # Scroll buffer
             self.buffer = np.roll(self.buffer, -num_samples, axis=1)

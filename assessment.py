@@ -95,9 +95,6 @@ class ExperimentConfig:
             self.BLANK_CONDITION_NAME: self.TRIGGER_CONTROL_STIMULUS_ONSET
         }
 
-# --- Serial Communication Class ---
-
-
 
 # --- Main Experiment Class ---
 class Experiment:

@@ -217,6 +217,53 @@ class PygameDisplay:
         self.screen.fill(bg_color)
         self._draw_text(self.screen, message, font, text_color, self.config.SCREEN_WIDTH // 2, self.config.SCREEN_HEIGHT // 2)
         pygame.display.flip()
+    
+    def display_erd_feedback_bar(self, erd_value, duration_ms=1500):
+        self.screen.fill(self.config.BLACK)
+
+        bar_width = int(self.config.SCREEN_WIDTH * 0.6)
+        bar_height = 40
+        bar_x = (self.config.SCREEN_WIDTH - bar_width) // 2
+        bar_y = self.config.SCREEN_HEIGHT // 2
+
+        # Clamp ERD value
+        erd_value = max(min(erd_value, 100), 0)
+        target_fill = int((erd_value / 100.0) * (bar_width))
+
+        start_time = pygame.time.get_ticks()
+        current_fill = 0
+
+        while pygame.time.get_ticks() - start_time < duration_ms:
+            self.screen.fill(self.config.BLACK)
+
+            # Draw background: left and right halves separately
+            # pygame.draw.rect(screen, GRAY, (bar_x, bar_y, bar_width // 2, bar_height))  # Left half (negative)
+            # pygame.draw.rect(screen, GRAY, (bar_x + bar_width // 2, bar_y, bar_width // 2, bar_height))  # Right half (positive)
+            pygame.draw.rect(self.screen, self.config.GRAY, (bar_x, bar_y, bar_width, bar_height))
+            # Animate toward target
+            if current_fill < target_fill:
+                current_fill += min(5, target_fill - current_fill)
+            elif current_fill > target_fill:
+                current_fill -= min(5, current_fill - target_fill)
+
+            # Draw fill
+            # if current_fill > 0:
+            #     pygame.draw.rect(screen, (0, 200, 0), (bar_x + bar_width // 2, bar_y, current_fill, bar_height))
+            # elif current_fill < 0:
+            #     pygame.draw.rect(screen, (200, 0, 0), (bar_x + bar_width // 2 + current_fill, bar_y, -current_fill, bar_height))
+            pygame.draw.rect(self.screen, (0, 200, 0), (bar_x, bar_y, current_fill, bar_height)) # Starts at bar_x, fills right
+            # Label
+            percent_text = self.FONT_MEDIUM.render(f"ERD: {erd_value:.1f}%", True, self.config.WHITE)
+            text_rect = percent_text.get_rect(center=(self.config.SCREEN_WIDTH // 2, bar_y - 60))
+            self.screen.blit(percent_text, text_rect)
+
+            pygame.display.flip()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT: pygame.quit(); close_serial(); close_tcp_connection(); sys.exit()
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: pygame.quit(); close_serial(); close_tcp_connection(); sys.exit()
+
+            pygame.time.wait(10)  # Smooth animation
 
     def quit_pygame_and_exit(self):
         pygame.quit()
