@@ -35,19 +35,21 @@ class ExperimentConfig:
         self.INTRO_DURATION_MS = 5000
         self.INITIAL_CALIBRATION_DURATION_MS = 3000
         self.FIXATION_IN_TRIAL_DURATION_MS = 3000
-        self.IMAGE_DISPLAY_DURATION_MS = 3000
+        self.IMAGE_DISPLAY_DURATION_MS = 2000
+        self.ERD_FEEDBACK_DURATION_MS = 2000
         self.SHORT_BREAK_DURATION_MS = 1500
 
         # Trial structure
-        self.NUM_SIXTH_FINGER_TRIALS_PER_BLOCK = 15
-        self.NUM_TOTAL_NORMAL_FINGER_TRIALS_PER_BLOCK = 15
-        self.NUM_BLANK_TRIALS_PER_BLOCK = 15
-        self.NUM_NORMAL_FINGERS = 5
+        self.NUM_SIXTH_FINGER_TRIALS_PER_BLOCK = 3
+        self.NUM_TOTAL_NORMAL_FINGER_TRIALS_PER_BLOCK = 3
+        self.NUM_BLANK_TRIALS_PER_BLOCK = 3
+        self.NUM_NORMAL_FINGERS = 3
         self.NUM_EACH_NORMAL_FINGER_PER_BLOCK = self.NUM_TOTAL_NORMAL_FINGER_TRIALS_PER_BLOCK // self.NUM_NORMAL_FINGERS
         self.TRIALS_PER_BLOCK = (self.NUM_SIXTH_FINGER_TRIALS_PER_BLOCK +
                                  self.NUM_TOTAL_NORMAL_FINGER_TRIALS_PER_BLOCK +
                                  self.NUM_BLANK_TRIALS_PER_BLOCK)
         self.NUM_BLOCKS = 3
+        self.NUM_MOTOR_EXECUTION_TRIALS_PER_BLOCK = 6  # Placeholder for future use
 
         # Streak control parameters
         self.MAX_CONSECUTIVE_CATEGORY_STREAK = 1
@@ -155,6 +157,21 @@ class Experiment:
             self.display.display_message_screen(f"Error: Missing stimulus for {trial_condition}", 2000, font=self.display.FONT_SMALL, bg_color=self.config.RED)
 
         return trial_condition
+    
+    def run_motor_execution_trial(self, trial_number_global, trial_condition):
+        print(f"Motor Execution Trial: {trial_number_global}, Condition: {trial_condition} "
+              f"(Category: {self.trial_generator.get_condition_category(trial_condition)})")
+
+        # Display fixation cross
+        self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET)
+        self.display.display_fixation_cross(self.config.FIXATION_IN_TRIAL_DURATION_MS)
+        
+        stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition)
+        
+        if stimulus_trigger_code is not None:
+            current_image_surface = self.display.scaled_images[trial_condition]
+            self.display.display_image_stimulus(current_image_surface, self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, 500, 600))
+            self.serial_comm.send_trigger(stimulus_trigger_code)
 
     def _initialize_hardware_and_display(self):
         self.serial_comm.initialize()
@@ -190,6 +207,22 @@ class Experiment:
         if len(trial_conditions) != self.config.TRIALS_PER_BLOCK:
             self._handle_critical_error("Trial list length mismatch.")
             return
+        
+        self.display.display_message_screen("Motor Execution Trials", duration_ms=2000, font=self.display.FONT_LARGE)
+        
+        motor_execution_trails = self.config.NORMAL_FINGER_TYPES + ["sixth"]
+        random.shuffle(motor_execution_trails)
+        
+        for trial_index, condition in enumerate(motor_execution_trails, 1):
+            self._check_exit_keys()
+            global_trial_num = (block_num - 1) * self.config.NUM_MOTOR_EXECUTION_TRIALS_PER_BLOCK + trial_index
+            print(f"Running Motor Execution Trial {global_trial_num} for condition: {condition}")
+            presented_condition = self.run_motor_execution_trial(global_trial_num, condition)
+            self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
+
+        
+        self.display.display_message_screen("Motor Imagery Trials", duration_ms=2000, font=self.display.FONT_LARGE)
+        
 
         for trial_index, condition in enumerate(trial_conditions, 1):
             self._check_exit_keys()
@@ -216,7 +249,8 @@ class Experiment:
         })
 
         self.erd_history.append(erd_value)
-        self.display.display_erd_feedback_bar(erd_value, duration_ms=self.config.SHORT_BREAK_DURATION_MS)
+        if condition != self.config.BLANK_CONDITION_NAME:
+            self.display.display_erd_feedback_bar(erd_value, duration_ms=self.config.ERD_FEEDBACK_DURATION_MS)
         self.serial_comm.send_trigger(self.config.TRIGGER_SHORT_BREAK_ONSET)
         self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
 
