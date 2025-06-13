@@ -5,3 +5,5 @@ scipy
 matplotlib
 scikit-learn
 seaborn
+colorama
+websocket-client
