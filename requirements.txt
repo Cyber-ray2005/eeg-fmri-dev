@@ -7,3 +7,4 @@ scikit-learn
 seaborn
 colorama
 websocket-client
+pygame
