@@ -2,6 +2,7 @@ import pygame
 import time
 import sys
 import os
+import re
 
 class PygameDisplay:
     def __init__(self, config):
@@ -13,11 +14,15 @@ class PygameDisplay:
         self.FONT_MEDIUM = pygame.font.Font(None, 50)
         self.FONT_SMALL = pygame.font.Font(None, 36)
         self.scaled_images = {}
+        
 
     def _setup_screen(self):
         if self.config.FULLSCREEN_MODE:
-            screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-            self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT = screen.get_size()
+            display_info = pygame.display.Info()
+            screen_width = display_info.current_w
+            screen_height = display_info.current_h
+            screen = pygame.display.set_mode((screen_width, screen_height), pygame.FULLSCREEN)
+            self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT = screen_width, screen_height
         else:
             screen = pygame.display.set_mode((self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT))
         pygame.display.set_caption("Motor Imagery Experiment")
@@ -43,6 +48,7 @@ class PygameDisplay:
 
         new_width = int(img_width * scale_factor)
         new_height = int(img_height * scale_factor)
+        
 
         try:
             scaled_image = pygame.transform.smoothscale(original_image, (new_width, new_height))
@@ -55,6 +61,10 @@ class PygameDisplay:
         try:
             self.scaled_images["sixth"] = self._load_and_scale_image(
                 self.config.SIXTH_FINGER_IMAGE_NAME, self.config.IMAGE_FOLDER,
+                self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT
+            )
+            self.scaled_images["rest"] = self._load_and_scale_image(
+                self.config.REST_FINGER_IMAGE_NAME, self.config.IMAGE_FOLDER,
                 self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT
             )
             for finger_type, img_name in self.config.NORMAL_FINGER_IMAGE_MAP.items():
@@ -109,12 +119,74 @@ class PygameDisplay:
                 current_y += line_height
 
     def display_message_screen(self, message, duration_ms=0, wait_for_key=False, font=None, bg_color=None, text_color=None, server_response=""):
-        font = font if font else self.FONT_MEDIUM
+        font = font if font else self.FONT_LARGE
         bg_color = bg_color if bg_color else self.config.GRAY
         text_color = text_color if text_color else self.config.BLACK
 
         self.screen.fill(bg_color)
-        self._draw_text(self.screen, message, font, text_color, self.config.SCREEN_WIDTH // 2, self.config.SCREEN_HEIGHT // 2)
+        
+        # --- Start of Multi-Line and Color Processing ---
+
+        lines = message.splitlines() # Split the message by '\n'
+        
+        # Pre-process all lines to find segments and calculate dimensions
+        processed_lines = []
+        max_line_width = 0
+        pattern = r'#([A-Za-z0-9_]+):([^#]+)#'
+
+        for line in lines:
+            processed_segments = []
+            last_end = 0
+            
+            # Use regex to find all color-tagged sections
+            for match in re.finditer(pattern, line):
+                # Add text before the match with default color
+                if match.start() > last_end:
+                    processed_segments.append((line[last_end:match.start()], text_color))
+                
+                # Extract color name and text
+                color_name, color_text = match.groups()
+                
+                # Get color from config or default
+                color = getattr(self.config, color_name.upper(), text_color)
+                if color == text_color and not hasattr(self.config, color_name.upper()):
+                    print(f"Warning: Color '{color_name}' not found. Using default.")
+
+                processed_segments.append((color_text, color))
+                last_end = match.end()
+            
+            # Add any remaining text after the last match
+            if last_end < len(line):
+                processed_segments.append((line[last_end:], text_color))
+
+            # Calculate the total width of this line for centering
+            line_width = sum(font.size(seg[0])[0] for seg in processed_segments)
+            max_line_width = max(max_line_width, line_width) # Keep track for potential block centering
+
+            processed_lines.append({'segments': processed_segments, 'width': line_width})
+
+        # --- Drawing Logic ---
+        
+        # Calculate the starting Y position to center the entire text block vertically
+        font_height = font.get_height()
+        total_text_height = len(lines) * font_height
+        current_y = (self.config.SCREEN_HEIGHT - total_text_height) // 2
+
+        # Draw each line
+        for line_data in processed_lines:
+            # Calculate the starting X to center this specific line horizontally
+            current_x = (self.config.SCREEN_WIDTH - line_data['width']) // 2
+            
+            # Draw each segment of the line
+            for text_segment, color in line_data['segments']:
+                if text_segment: # Avoid rendering empty strings
+                    text_surface = font.render(text_segment, True, color)
+                    self.screen.blit(text_surface, (current_x, current_y))
+                    current_x += text_surface.get_width() # Move X for the next segment
+            
+            current_y += font_height # Move Y down for the next line
+
+        # --- End of Drawing Logic ---
 
         if server_response:
             response_text = self.FONT_SMALL.render(f"Server Says: {server_response}", True, self.config.BLACK)
@@ -123,6 +195,7 @@ class PygameDisplay:
 
         pygame.display.flip()
 
+        # --- Game Loop for Displaying the Message ---
         start_time = pygame.time.get_ticks()
         running = True
         while running:
@@ -137,10 +210,24 @@ class PygameDisplay:
 
     def display_fixation_cross(self, duration_ms):
         self.screen.fill(self.config.BLACK)
-        cross_size = 90
+        cross_size = 100
+        line_thickness = 10 # Define line thickness
         center_x, center_y = self.config.SCREEN_WIDTH // 2, self.config.SCREEN_HEIGHT // 2
-        pygame.draw.line(self.screen, self.config.WHITE, (center_x - cross_size // 2, center_y), (center_x + cross_size // 2, center_y), 10)
-        pygame.draw.line(self.screen, self.config.WHITE, (center_x, center_y - cross_size // 2), (center_x, center_y + cross_size // 2), 10)
+
+        # Horizontal line
+        # Adjust coordinates to account for line thickness, ensuring perfect centering
+        pygame.draw.line(self.screen, self.config.WHITE, 
+                         (center_x - cross_size // 2, center_y), 
+                         (center_x + cross_size // 2, center_y), 
+                         line_thickness)
+        
+        # Vertical line
+        # Adjust coordinates to account for line thickness, ensuring perfect centering
+        pygame.draw.line(self.screen, self.config.WHITE, 
+                         (center_x, center_y - cross_size // 2), 
+                         (center_x, center_y + cross_size // 2), 
+                         line_thickness)
+        
         pygame.display.flip()
 
         start_time = pygame.time.get_ticks()
@@ -157,8 +244,9 @@ class PygameDisplay:
 
         if crop_rect is not None:
             try:
-                cropped_surface = pygame.Surface((crop_rect[2], crop_rect[3]), pygame.SRCALPHA) # Use SRCALPHA for transparent images
-                cropped_surface.blit(image_surface, (0, 0), crop_rect)
+                # The SRCALPHA flag is a good addition for transparency
+                cropped_surface = pygame.Surface((crop_rect[2], crop_rect[3]), pygame.SRCALPHA)
+                cropped_surface.blit(image_surface, (0,0))
                 image_to_display = cropped_surface
             except Exception as e:
                 print(f"Error cropping image: {e}. Displaying original.")
@@ -166,11 +254,15 @@ class PygameDisplay:
         else:
             image_to_display = image_surface
 
-        image_rect = image_to_display.get_rect(center=(self.config.SCREEN_WIDTH // 2, self.config.SCREEN_HEIGHT // 2))
+
+        screen_center = self.screen.get_rect().center
+        image_rect = image_to_display.get_rect(center=screen_center)
+        
         self.screen.blit(image_to_display, image_rect)
 
         pygame.display.flip()
 
+        # The rest of your event loop is fine
         start_time = pygame.time.get_ticks()
         running = True
         while running:
@@ -236,34 +328,122 @@ class PygameDisplay:
         while pygame.time.get_ticks() - start_time < duration_ms:
             self.screen.fill(self.config.BLACK)
 
-            # Draw background: left and right halves separately
-            # pygame.draw.rect(screen, GRAY, (bar_x, bar_y, bar_width // 2, bar_height))  # Left half (negative)
-            # pygame.draw.rect(screen, GRAY, (bar_x + bar_width // 2, bar_y, bar_width // 2, bar_height))  # Right half (positive)
+            # Determine bar color based on ERD value
+            bar_color = (0, 200, 0)  # Default Green
+            if erd_value < 20:
+                bar_color = (255, 0, 0)  # Red
+            elif 20 <= erd_value <= 50:
+                bar_color = (255, 165, 0) # Orange
+            else: # erd_value > 50
+                bar_color = (0, 200, 0) # Green
+
+            # Draw background bar
             pygame.draw.rect(self.screen, self.config.GRAY, (bar_x, bar_y, bar_width, bar_height))
+            
             # Animate toward target
             if current_fill < target_fill:
                 current_fill += min(5, target_fill - current_fill)
             elif current_fill > target_fill:
                 current_fill -= min(5, current_fill - target_fill)
 
-            # Draw fill
-            # if current_fill > 0:
-            #     pygame.draw.rect(screen, (0, 200, 0), (bar_x + bar_width // 2, bar_y, current_fill, bar_height))
-            # elif current_fill < 0:
-            #     pygame.draw.rect(screen, (200, 0, 0), (bar_x + bar_width // 2 + current_fill, bar_y, -current_fill, bar_height))
-            pygame.draw.rect(self.screen, (0, 200, 0), (bar_x, bar_y, current_fill, bar_height)) # Starts at bar_x, fills right
+            # Draw fill with dynamic color
+            pygame.draw.rect(self.screen, bar_color, (bar_x, bar_y, current_fill, bar_height)) # Starts at bar_x, fills right
+            
             # Label
-            percent_text = self.FONT_MEDIUM.render(f"ERD: {erd_value:.1f}%", True, self.config.WHITE)
+            percent_text = self.FONT_MEDIUM.render(f"Quality of Imagery: {erd_value:.1f}%", True, self.config.WHITE)
             text_rect = percent_text.get_rect(center=(self.config.SCREEN_WIDTH // 2, bar_y - 60))
             self.screen.blit(percent_text, text_rect)
 
             pygame.display.flip()
 
             for event in pygame.event.get():
-                if event.type == pygame.QUIT: pygame.quit(); close_serial(); close_tcp_connection(); sys.exit()
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: pygame.quit(); close_serial(); close_tcp_connection(); sys.exit()
+                if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: pygame.quit(); sys.exit()
 
-            pygame.time.wait(10)  # Smooth animation
+            pygame.time.wait(5)  # Smooth animation
+
+    
+    def ask_yes_no_question(self, question):
+        """
+        Displays a yes/no question with interactive buttons.
+
+        Args:
+            question (str): The question to display to the user.
+
+        Returns:
+            bool: True if 'Yes' is selected, False if 'No' is selected.
+        """
+        # Define colors for buttons
+        BUTTON_NORMAL_COLOR = self.config.GRAY
+        BUTTON_HIGHLIGHT_COLOR = (100, 100, 255) # A distinct blue for highlighting
+        TEXT_COLOR = self.config.WHITE
+
+        # Define button properties
+        button_width = 200
+        button_height = 80
+        button_spacing = 50
+
+        # Calculate positions
+        center_x = self.config.SCREEN_WIDTH // 2
+        center_y = self.config.SCREEN_HEIGHT // 2
+
+        # Question text position
+        question_surface = self.FONT_MEDIUM.render(question, True, TEXT_COLOR)
+        question_rect = question_surface.get_rect(center=(center_x, center_y - button_height - 50))
+
+        # Button positions
+        yes_x = center_x - button_width - button_spacing // 2
+        no_x = center_x + button_spacing // 2
+        button_y = center_y + 50
+
+        yes_rect = pygame.Rect(yes_x, button_y, button_width, button_height)
+        no_rect = pygame.Rect(no_x, button_y, button_width, button_height)
+
+        # Initial selection (Yes is default)
+        selected_option = "yes" 
+
+        running = True
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.quit_pygame_and_exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.quit_pygame_and_exit()
+                    elif (event.key == pygame.K_y):
+                        selected_option = "yes"
+                        running = False
+                    elif event.key == pygame.K_n:
+                        selected_option = "no"
+                        running = False
+                    elif event.key == pygame.K_RETURN: # Enter key to confirm selection
+                        running = False
+
+            # Drawing
+            self.screen.fill(self.config.BLACK)
+
+            # Draw question
+            self.screen.blit(question_surface, question_rect)
+
+            # Draw Yes button
+            yes_color = BUTTON_HIGHLIGHT_COLOR if selected_option == "yes" else BUTTON_NORMAL_COLOR
+            pygame.draw.rect(self.screen, yes_color, yes_rect, border_radius=10)
+            yes_text_surface = self.FONT_MEDIUM.render("Yes", True, TEXT_COLOR)
+            yes_text_rect = yes_text_surface.get_rect(center=yes_rect.center)
+            self.screen.blit(yes_text_surface, yes_text_rect)
+
+            # Draw No button
+            no_color = BUTTON_HIGHLIGHT_COLOR if selected_option == "no" else BUTTON_NORMAL_COLOR
+            pygame.draw.rect(self.screen, no_color, no_rect, border_radius=10)
+            no_text_surface = self.FONT_MEDIUM.render("No", True, TEXT_COLOR)
+            no_text_rect = no_text_surface.get_rect(center=no_rect.center)
+            self.screen.blit(no_text_surface, no_text_rect)
+
+            pygame.display.flip()
+            pygame.time.wait(10) # Small delay to reduce CPU usage
+
+        return selected_option == "yes"
+
 
     def quit_pygame_and_exit(self):
         pygame.quit()

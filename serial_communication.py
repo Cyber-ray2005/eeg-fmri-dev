@@ -1,4 +1,5 @@
 import serial
+import time
 
 class SerialCommunication:
     def __init__(self, port, baudrate):
@@ -22,7 +23,9 @@ class SerialCommunication:
     def send_trigger(self, trigger_value):
         if self.ser and self.ser.is_open:
             try:
-                self.ser.write(bytes([trigger_value]))
+                # message_to_send = str(trigger_value).encode('ascii')
+                # self.ser.write(bytes([trigger_value]))
+                self.ser.write(trigger_value.to_bytes(length=1, byteorder="big"))
                 print(f"Sent trigger: {trigger_value} (0x{trigger_value:02X})")
                 time.sleep(0.001)
             except serial.SerialTimeoutException:

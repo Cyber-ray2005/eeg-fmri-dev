@@ -18,11 +18,11 @@ class EEGConfig:
         # EEG Connection Parameters
         self.EEG_SERVER_IP = "169.254.1.147"
         self.EEG_SERVER_PORT = 51244
-        self.COLLECT_FROM_EMULATOR = True
+        self.COLLECT_FROM_EMULATOR = False
 
         # Signal Processing Parameters
         self.FOCUS_CHANNELS = [7, 39, 42, 11] # C3, C1, CP3, CP1 (0-indexed)
-        self.FOCUS_MARKERS = ['S  9', 'S 10', 'S 11']
+        self.FOCUS_MARKERS = ['S  1', 'S  2', 'S  3', 'S  4', 'S  5', 'S  6']
         self.LOW_CUT = 8.0 # Hz (alpha band)
         self.HIGH_CUT = 13.0 # Hz (alpha band)
         self.FILTER_ORDER = 5
@@ -269,7 +269,8 @@ class EEGDataCollector:
 
         start_time = time.time()
         try:
-            while (time.time() - start_time) < self.config.MAX_STREAM_DURATION_SECONDS:
+            # while (time.time() - start_time) < self.config.MAX_STREAM_DURATION_SECONDS:
+            while True:
                 self.broadcaster.accept_client() # Attempt to accept client connection
 
                 data_chunk, markers = self.receiver.get_data()

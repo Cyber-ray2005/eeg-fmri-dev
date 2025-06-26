@@ -9,6 +9,7 @@ from trial_generator import TrialGenerator
 from pygame_display import PygameDisplay
 from logger import TrialDataLogger
 from serial_communication import SerialCommunication
+import winsound
 
 # --- Configuration Class ---
 class ExperimentConfig:
@@ -22,6 +23,8 @@ class ExperimentConfig:
         self.WHITE = (255, 255, 255)
         self.BLACK = (0, 0, 0)
         self.GRAY = (150, 150, 150)
+        self.RED = (255, 0, 0)
+        self.BLUE = (0, 0, 255)
         self.RED = (255, 0, 0)
         self.CIRCLE_COLOR = (200, 200, 200)
 
@@ -50,14 +53,21 @@ class ExperimentConfig:
         # Stimulus Paths and Names
         self.IMAGE_FOLDER = "images"
         self.SIXTH_FINGER_IMAGE_NAME = "Hand_SixthFinger_Highlighted.png"
+        self.REST_FINGER_IMAGE_NAME = "Rest.png"
+        self.SIXTH_FINGER_BLUE_IMAGE_NAME = "Hand_SixthFinger_Highlighted_Blue.png"
         self.NORMAL_FINGER_IMAGE_MAP = {
-            "thumb": "Hand_Thumb_Highlighted.png",
+            "thumb": "Hand_Index_Highlighted.png",
             "index": "Hand_Index_Highlighted.png",
             "middle": "Hand_Middle_Highlighted.png",
             "ring": "Hand_Ring_Highlighted.png",
-            "pinky": "Hand_Pinky_Highlighted.png"
+            "pinky": "Hand_Pinky_Highlighted.png",
+            "thumb_blue": "Hand_Index_Highlighted_Blue.png",
+            "index_blue": "Hand_Index_Highlighted_Blue.png",
+            "middle_blue": "Hand_Middle_Highlighted_Blue.png",
+            "ring_blue": "Hand_Ring_Highlighted_Blue.png",
+            "pinky_blue": "Hand_Pinky_Highlighted_Blue.png"
         }
-        self.NORMAL_FINGER_TYPES = list(self.NORMAL_FINGER_IMAGE_MAP.keys())
+        self.NORMAL_FINGER_TYPES = ["thumb", "index", "middle", "ring", "pinky"]
         self.BLANK_CONDITION_NAME = "blank"
 
         # Condition categories for streak checking
@@ -83,6 +93,8 @@ class ExperimentConfig:
         self.TRIGGER_PINKY_ONSET = 5
         self.TRIGGER_CONTROL_STIMULUS_ONSET = 7
         self.TRIGGER_SHORT_BREAK_ONSET = 20
+        self.BEEP_FREQUENCY = 1000  # Frequency in Hz for the beep sound
+        self.BEEP_DURATION_MS = 100  # Duration in milliseconds for the beep sound
 
         # Mapping from trial condition names to stimulus trigger codes
         self.STIMULUS_TRIGGER_MAP = {
@@ -116,6 +128,22 @@ class Experiment:
         self.serial_comm.close()
         # if self.tcp_client: # If you implement a TCP client, uncomment this
         #     self.tcp_client.close()
+    
+    def run_motor_execution_trial(self, trial_condition):
+        print(f"Motor Execution Trial, Condition: {trial_condition} "
+              f"(Category: {self.trial_generator.get_condition_category(trial_condition)})")
+
+        # Display fixation cross
+        self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET)
+        self.display.display_fixation_cross(self.config.FIXATION_IN_TRIAL_DURATION_MS)
+        winsound.Beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)  # Beep sound to indicate trial start
+        stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition)
+        
+        if stimulus_trigger_code is not None:
+            current_image_surface = self.display.scaled_images[trial_condition+"_blue"]
+            self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()*0.75))
+
+            self.serial_comm.send_trigger(stimulus_trigger_code)
 
     def run_trial(self, trial_number_global, trial_condition):
         print(f"Global Trial: {trial_number_global}, Condition: {trial_condition} "
@@ -124,43 +152,65 @@ class Experiment:
         # Display fixation cross
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET) # Trigger for fixation cross
         self.display.display_fixation_cross(self.config.FIXATION_IN_TRIAL_DURATION_MS)
+          
+
+        winsound.Beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)  # Beep sound to indicate trial start
 
         stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition)
 
         if trial_condition == self.config.BLANK_CONDITION_NAME:
-            self.display.display_control_stimulus(self.config.IMAGE_DISPLAY_DURATION_MS)
+            # self.display.display_blank_screen(self.config.IMAGE_DISPLAY_DURATION_MS)
+            current_image_surface = self.display.scaled_images["rest"]
             self.serial_comm.send_trigger(stimulus_trigger_code)
+            self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()*0.75))
         elif trial_condition in self.display.scaled_images:
             if stimulus_trigger_code is not None:
                 current_image_surface = self.display.scaled_images[trial_condition]
-                self.display.display_image_stimulus(current_image_surface, self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, 500, 600))
                 self.serial_comm.send_trigger(stimulus_trigger_code)
+                self.display.display_image_stimulus(current_image_surface, self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()*0.75))
             else:
                 print(f"Warning: No trigger defined for image condition '{trial_condition}'. Stimulus shown without trigger.")
                 current_image_surface = self.display.scaled_images[trial_condition]
-                self.display.display_image_stimulus(current_image_surface, self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, 500, 600))
+                self.display.display_image_stimulus(current_image_surface, self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()*0.75))
         else:
             print(f"Error: Unknown trial condition or image key '{trial_condition}'.")
             self.display.display_message_screen(f"Error: Missing stimulus for {trial_condition}", 2000, font=self.display.FONT_SMALL, bg_color=self.config.RED)
 
+        if trial_number_global % 5 == 0:
+            self.display.ask_yes_no_question("Did you perform the motor imagery?")
+            
+        
         return trial_condition
 
     def run_experiment(self):
         self.serial_comm.initialize()
         self.display.load_stimulus_images()
 
-        intro_text = "Welcome to the Motor Imagery Experiment!\n\nPlease focus on the stimulus presented.\n\n"
+        intro_text = "Welcome to the Motor Imagery Experiment!\n\n"
         if self.config.INTRO_WAIT_KEY_PRESS:
             intro_text += "Press any key to begin."
-            self.display.display_message_screen(intro_text, wait_for_key=True, font=self.display.FONT_MEDIUM)
+            self.display.display_message_screen(intro_text, wait_for_key=True, font=self.display.FONT_LARGE)
         else:
             intro_text += f"The experiment will begin in {self.config.INTRO_DURATION_MS/1000:.0f} seconds."
-            self.display.display_message_screen(intro_text, duration_ms=self.config.INTRO_DURATION_MS, font=self.display.FONT_MEDIUM)
+            self.display.display_message_screen(intro_text, duration_ms=self.config.INTRO_DURATION_MS, font=self.display.FONT_LARGE)
 
-        self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_START)
+        # self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_START)
+        # self.display.display_message_screen("Motor Execution Trials", duration_ms=2000, font=self.display.FONT_LARGE)
+        # instruction = "In the next slides, you will see a hand illustration \n with one of the fingers highlighted #BLUE:BLUE#.\n\n Flex and extend the encircled finger. \n\n Press any key to continue."
+        # self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
+        # motor_execution_trails = self.config.NORMAL_FINGER_TYPES
+        # random.shuffle(motor_execution_trails)
+        
+        # for trial_index, condition in enumerate(motor_execution_trails, 1):
+        #     presented_condition = self.run_motor_execution_trial(condition)
+        #     self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
 
+        
+        self.display.display_message_screen("Motor Imagery Trials", duration_ms=2000, font=self.display.FONT_LARGE)
+        instruction = " In the next slides , you will see a hand illustration \n with one of teh fingers encircled #RED:RED#. \n\n Imagine, kinesthetically, flexing and extending the encircled finger.  \n\n Press any key to continue."
+        self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
         for block_num in range(1, self.config.NUM_BLOCKS + 1):
-            self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_START)
+            # self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_START)
             self.display.display_loading_screen("Generating trials for Block...", font=self.display.FONT_MEDIUM, bg_color=self.config.BLACK, text_color=self.config.WHITE)
             current_block_trial_conditions = self.trial_generator.generate_trial_list_for_block()
 
@@ -169,6 +219,8 @@ class Experiment:
                 self.display.display_message_screen("CRITICAL Error: Trial configuration issue.", 5000, bg_color=self.config.RED)
                 self._close_all_connections()
                 self.display.quit_pygame_and_exit()
+                self.display.display_message_screen("Motor Execution Trials", duration_ms=2000, font=self.display.FONT_LARGE)
+        
 
             for trial_num_in_block, condition in enumerate(current_block_trial_conditions, 1):
                 for event in pygame.event.get():
@@ -189,10 +241,10 @@ class Experiment:
                 }
                 self.data_logger.add_trial_data(trial_data)
 
-                self.serial_comm.send_trigger(self.config.TRIGGER_SHORT_BREAK_ONSET)
+                # self.serial_comm.send_trigger(self.config.TRIGGER_SHORT_BREAK_ONSET)
                 self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
 
-            self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_END)
+            # self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_END)
             # In a real scenario, block_end_server_response would come from a server.
             # For now, we'll use a placeholder or empty string.
             block_end_server_response = "" # Placeholder for server response
@@ -203,7 +255,7 @@ class Experiment:
             else:
                 self.display.display_message_screen("All Blocks Completed!", duration_ms=3000, font=self.display.FONT_MEDIUM, server_response=block_end_server_response)
 
-        self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_END)
+        # self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_END)
         self.display.display_message_screen("Experiment Finished!\n\nThank you for your participation.", duration_ms=5000, wait_for_key=True, font=self.display.FONT_LARGE)
 
         saved_file = self.data_logger.save_data(self.participant_id)

@@ -1,2 +1,6 @@
 __pycache__
 data/
+experiment_logs/
+results/
+*.ipynb
+yonas.txt

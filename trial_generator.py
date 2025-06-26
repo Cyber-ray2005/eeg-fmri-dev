@@ -44,9 +44,29 @@ class TrialGenerator:
         
         
         shuffled_list = list(base_trial_conditions)
-
+        ctr=1
         while True:
             random.shuffle(shuffled_list)
+            ctr+=1
             if not self._check_streak_violations(shuffled_list, self.config.MAX_CONSECUTIVE_CATEGORY_STREAK):
+                print(f"Generated trial list after {ctr} trials")
                 return shuffled_list
+    #         
+    # def generate_trial_list_for_block(self):
+    #     finger_types = self.config.NORMAL_FINGER_TYPES if self.config.NUM_NORMAL_FINGERS == 5 else random.sample(self.config.NORMAL_FINGER_TYPES, self.config.NUM_NORMAL_FINGERS)
+          
         
+    #     trail_list = []
+    #     len_trail_list = self.config.NUM_SIXTH_FINGER_TRIALS_PER_BLOCK + self.config.NUM_TOTAL_NORMAL_FINGER_TRIALS_PER_BLOCK
+    #     for i in range(0, len_trail_list, 2):
+    #         trail_list.append(random.choice(finger_types))
+    #         trail_list.append("sixth")
+        
+    #     step = len(trail_list)//self.config.NUM_BLANK_TRIALS_PER_BLOCK
+    #     j=step-1
+    #     for i in range(j, self.config.TRIALS_PER_BLOCK, step+1):
+    #         trail_list.insert(i, self.config.BLANK_CONDITION_NAME)
+            
+            
+    #     print(f"Generated trial list: {trail_list}, length: {len(trail_list)}")
+    #     return trail_list
