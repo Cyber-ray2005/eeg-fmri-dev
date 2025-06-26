@@ -135,7 +135,7 @@ class Experiment:
 
         # Display fixation cross
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET)
-        self.display.display_fixation_cross(self.config.FIXATION_IN_TRIAL_DURATION_MS)
+        self.display.display_fixation_cross(random.choice(self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500))
         winsound.Beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)  # Beep sound to indicate trial start
         stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition)
         
@@ -151,7 +151,8 @@ class Experiment:
 
         # Display fixation cross
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET) # Trigger for fixation cross
-        self.display.display_fixation_cross(self.config.FIXATION_IN_TRIAL_DURATION_MS)
+        # self.display.display_fixation_cross(self.config.FIXATION_IN_TRIAL_DURATION_MS)
+        self.display.display_fixation_cross(random.choice(self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500))
           
 
         winsound.Beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)  # Beep sound to indicate trial start
