@@ -81,7 +81,7 @@ class ExperimentConfig:
         self.CATEGORY_BLANK = "blank_cat"
 
         # Serial Port Configuration and Triggers
-        self.SERIAL_PORT = 'COM15'
+        self.SERIAL_PORT = 'COM4'
         self.BAUD_RATE = 9600
         self.REST_FINGER_IMAGE_NAME = "Rest.png"
         

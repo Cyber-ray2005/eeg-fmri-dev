@@ -17,7 +17,7 @@ class ExperimentConfig:
         # Screen dimensions
         self.SCREEN_WIDTH = 1000
         self.SCREEN_HEIGHT = 700
-        self.FULLSCREEN_MODE = False
+        self.FULLSCREEN_MODE = True
 
         # Colors
         self.WHITE = (255, 255, 255)
@@ -61,7 +61,7 @@ class ExperimentConfig:
             "middle": "Hand_Middle_Highlighted.png",
             "ring": "Hand_Ring_Highlighted.png",
             "pinky": "Hand_Pinky_Highlighted.png",
-            "thumb_blue": "Hand_Index_Highlighted_Blue.png",
+            "thumb_blue": "Hand_Thumb_Highlighted_Blue.png",
             "index_blue": "Hand_Index_Highlighted_Blue.png",
             "middle_blue": "Hand_Middle_Highlighted_Blue.png",
             "ring_blue": "Hand_Ring_Highlighted_Blue.png",
@@ -76,7 +76,7 @@ class ExperimentConfig:
         self.CATEGORY_BLANK = "blank_cat"
 
         # Serial Port Configuration and Triggers
-        self.SERIAL_PORT = 'COM15'
+        self.SERIAL_PORT = 'COM4'
         self.BAUD_RATE = 9600
 
         # Define trigger values (bytes)
@@ -135,15 +135,15 @@ class Experiment:
 
         # Display fixation cross
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET)
-        self.display.display_fixation_cross(random.choice(self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500))
+        self.display.display_fixation_cross(random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500]))
         winsound.Beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)  # Beep sound to indicate trial start
         stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition)
         
         if stimulus_trigger_code is not None:
             current_image_surface = self.display.scaled_images[trial_condition+"_blue"]
+            self.serial_comm.send_trigger(stimulus_trigger_code)
             self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()*0.75))
 
-            self.serial_comm.send_trigger(stimulus_trigger_code)
 
     def run_trial(self, trial_number_global, trial_condition):
         print(f"Global Trial: {trial_number_global}, Condition: {trial_condition} "
@@ -152,7 +152,7 @@ class Experiment:
         # Display fixation cross
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET) # Trigger for fixation cross
         # self.display.display_fixation_cross(self.config.FIXATION_IN_TRIAL_DURATION_MS)
-        self.display.display_fixation_cross(random.choice(self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500))
+        self.display.display_fixation_cross(random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500]))
           
 
         winsound.Beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)  # Beep sound to indicate trial start
@@ -163,7 +163,8 @@ class Experiment:
             # self.display.display_blank_screen(self.config.IMAGE_DISPLAY_DURATION_MS)
             current_image_surface = self.display.scaled_images["rest"]
             self.serial_comm.send_trigger(stimulus_trigger_code)
-            self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()*0.75))
+            # self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()*0.75))
+            self.display.display_message_screen("REST", duration_ms=self.config.IMAGE_DISPLAY_DURATION_MS, font=self.display.FONT_LARGE)
         elif trial_condition in self.display.scaled_images:
             if stimulus_trigger_code is not None:
                 current_image_surface = self.display.scaled_images[trial_condition]
@@ -196,15 +197,15 @@ class Experiment:
             self.display.display_message_screen(intro_text, duration_ms=self.config.INTRO_DURATION_MS, font=self.display.FONT_LARGE)
 
         # self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_START)
-        # self.display.display_message_screen("Motor Execution Trials", duration_ms=2000, font=self.display.FONT_LARGE)
-        # instruction = "In the next slides, you will see a hand illustration \n with one of the fingers highlighted #BLUE:BLUE#.\n\n Flex and extend the encircled finger. \n\n Press any key to continue."
-        # self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
-        # motor_execution_trails = self.config.NORMAL_FINGER_TYPES
-        # random.shuffle(motor_execution_trails)
+        self.display.display_message_screen("Motor Execution Trials", duration_ms=2000, font=self.display.FONT_LARGE)
+        instruction = "In the next slides, you will see a hand illustration \n with one of the fingers highlighted #BLUE:BLUE#.\n\n Flex and extend the encircled finger. \n\n Press any key to continue."
+        self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
+        motor_execution_trails = self.config.NORMAL_FINGER_TYPES
+        random.shuffle(motor_execution_trails)
         
-        # for trial_index, condition in enumerate(motor_execution_trails, 1):
-        #     presented_condition = self.run_motor_execution_trial(condition)
-        #     self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
+        for trial_index, condition in enumerate(motor_execution_trails, 1):
+            presented_condition = self.run_motor_execution_trial(condition)
+            self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
 
         
         self.display.display_message_screen("Motor Imagery Trials", duration_ms=2000, font=self.display.FONT_LARGE)

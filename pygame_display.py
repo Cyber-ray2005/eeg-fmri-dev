@@ -21,7 +21,10 @@ class PygameDisplay:
             display_info = pygame.display.Info()
             screen_width = display_info.current_w
             screen_height = display_info.current_h
-            screen = pygame.display.set_mode((screen_width, screen_height), pygame.FULLSCREEN)
+            if pygame.display.get_num_displays() > 1: 
+                screen = pygame.display.set_mode((screen_width, screen_height), pygame.FULLSCREEN, display=1)
+            else:
+                screen = pygame.display.set_mode((screen_width, screen_height), pygame.FULLSCREEN)
             self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT = screen_width, screen_height
         else:
             screen = pygame.display.set_mode((self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT))
@@ -61,6 +64,10 @@ class PygameDisplay:
         try:
             self.scaled_images["sixth"] = self._load_and_scale_image(
                 self.config.SIXTH_FINGER_IMAGE_NAME, self.config.IMAGE_FOLDER,
+                self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT
+            )
+            self.scaled_images["sixth_blue"] = self._load_and_scale_image(
+                self.config.SIXTH_FINGER_BLUE_IMAGE_NAME, self.config.IMAGE_FOLDER,
                 self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT
             )
             self.scaled_images["rest"] = self._load_and_scale_image(
