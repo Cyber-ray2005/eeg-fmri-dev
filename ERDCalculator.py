@@ -161,7 +161,7 @@ class ERDCalculator:
         erd_focus_values = erd_percent_all_channels[self.focus_channels_indices]
 
         if return_mean:
-            return np.nanmean(erd_focus_values) if np.any(~np.isnan(erd_focus_values)) else None
+            return np.nanmean(erd_focus_values) if np.any(~np.isnan(erd_focus_values)) else None, None
         else:
             if len(erd_percent_all_channels) != len(self.channel_names):
                 print("Warning: Number of ERD values does not match number of channel names.")
@@ -295,10 +295,145 @@ class ERDCalculator:
             return None
 
         if return_mean:
-            return np.nanmean(erd_focus_values)
+            return np.nanmean(erd_focus_values), np.nanmean(all_window_erds[self.focus_channels_indices, :], axis=0)
         else:
             return {self.channel_names[i]: mean_erd_all_channels[i] for i in range(len(self.channel_names))}
 
+    def calculate_erd_consecutive_windows(self, epoch_data, window_size_samples, consecutive_windows, return_mean=True, method='percentage'):
+        """
+        Calculates ERD based on consecutive windows showing a power decrease.
+        If a specified number of consecutive windows do not show a decrease, it's considered ERS, and ERD is set to 0.
+
+        Args:
+            epoch_data (np.array): The EEG data for a single epoch.
+            window_size_samples (int): The size of the moving window in samples.
+            consecutive_windows (int): The number of consecutive windows that must show a power decrease for it to be considered ERD.
+            return_mean (bool): If True, returns the mean ERD of focus channels.
+                                If False, returns a dict of ERD values per focus channel.
+            method (str): The calculation method to use. Options: 'percentage', 'db_correction'.
+                          Defaults to 'percentage'.
+
+        Returns:
+            float, dict, or None: The calculated ERD value(s) or None if calculation fails.
+        """
+        processed_epoch = self._preprocess_epoch(epoch_data)
+        if processed_epoch is None:
+            return None
+
+        pre_stimulus_data = processed_epoch[:, :self.samples_before_marker]
+        post_stimulus_data = processed_epoch[:, self.samples_before_marker:]
+
+        pre_len, post_len = pre_stimulus_data.shape[1], post_stimulus_data.shape[1]
+        if not (0 < window_size_samples <= pre_len and window_size_samples <= post_len):
+            print(f"Window size ({window_size_samples}) is invalid for pre ({pre_len}) or post ({post_len}) data lengths.")
+            return None
+
+        num_windows = min(pre_len, post_len) - window_size_samples + 1
+        if num_windows < consecutive_windows:
+            print(f"Not enough samples to form {consecutive_windows} consecutive window(s).")
+            return None
+
+        # This array will store the calculated ERD value for each window
+        all_window_erds = np.zeros((self.channel_count, num_windows))
+        # This array tracks if a window showed a power decrease (1) or not (0)
+        power_decrease_tracker = np.zeros((self.channel_count, num_windows), dtype=int)
+
+        for i in range(num_windows):
+            pre_power = np.mean(pre_stimulus_data[:, i:i + window_size_samples]**2, axis=1)
+            post_power = np.mean(post_stimulus_data[:, i:i + window_size_samples]**2, axis=1)
+
+            if method == 'percentage':
+                erd_window = self._compute_erd_percentage(pre_power, post_power)
+            elif method == 'db_correction':
+                erd_window = self._compute_erd_db(pre_power, post_power)
+            else:
+                print(f"Invalid method '{method}'. Please choose 'percentage' or 'db_correction'.")
+                return None
+            
+            all_window_erds[:, i] = erd_window
+            # A positive ERD in percentage method means power decrease.
+            # A negative ERD in dB method means power decrease.
+            if method == 'percentage':
+                 power_decrease_tracker[:, i] = (erd_window < 0).astype(int)
+            elif method == 'db_correction':
+                 power_decrease_tracker[:, i] = (erd_window < 0).astype(int)
+
+
+        # This array will hold the final ERD values, filtered by the consecutive rule
+        final_erds = np.zeros_like(all_window_erds)
+        all_window_erds_focus = all_window_erds[self.focus_channels_indices, :]
+        all_window_erds_focus_average = np.nanmean(all_window_erds_focus, axis=0) #shape: (num_windows,)
+        power_decrease_tracker_avg = all_window_erds_focus_average < 0 #shape: (num_windows,)
+        final_erds_average = np.zeros_like(all_window_erds_focus_average) #shape: (num_windows,)
+        # Iterate over each channel to apply the consecutive window logic
+        # for chan_idx in range(self.channel_count):
+        #     consecutive_count = 0
+        #     for win_idx in range(num_windows):
+        #         if power_decrease_tracker[chan_idx, win_idx] == 1:
+        #             consecutive_count += 1
+        #         else:
+        #             # If the chain is broken, check if the previous windows met the criteria
+        #             if consecutive_count >= consecutive_windows:
+        #                 # Mark the valid consecutive windows
+        #                 for k in range(consecutive_count):
+        #                     final_erds[chan_idx, win_idx - 1 - k] = all_window_erds[chan_idx, win_idx - 1 - k]
+        #             consecutive_count = 0 # Reset counter
+            
+        #     # Check after the loop for a sequence at the very end
+        #     if consecutive_count >= consecutive_windows:
+        #          for k in range(consecutive_count):
+        #             final_erds[chan_idx, num_windows - 1 - k] = all_window_erds[chan_idx, num_windows - 1 - k]
+        
+        # Use a sliding window approach to check for consecutive decreases
+        consecutive_count = 0
+        for win_idx in range(num_windows):
+            if power_decrease_tracker_avg[win_idx]:
+                consecutive_count += 1
+            else:
+                # If the chain is broken, check if the previous windows met the criteria
+                if consecutive_count >= consecutive_windows:
+                    # Mark the valid consecutive windows
+                    for k in range(consecutive_count):
+                        final_erds_average[win_idx - 1 - k] = all_window_erds_focus_average[win_idx - 1 - k]
+                    # break
+                consecutive_count = 0
+            
+
+
+        # Replace all non-positive ERD values (ERS) with 0, as they are not part of a valid sequence
+        # final_erds[final_erds < 0] = 0
+
+        # # Calculate the mean ERD, ignoring the zeros where ERD was not confirmed
+        # mean_erd_all_channels = np.true_divide(final_erds.sum(1), (final_erds != 0).sum(1))
+        # # Handle cases where a channel had no valid ERD windows to avoid division by zero
+        # mean_erd_all_channels = np.nan_to_num(mean_erd_all_channels)
+
+        # erd_focus_values = mean_erd_all_channels[self.focus_channels_indices]
+        # print(f"Final ERD values after consecutive window processing: {final_erds_average}")
+        # final_erds_average[final_erds_average < 0] = 0 # Set ERS to 0
+
+        # if np.all(erd_focus_values == 0):
+        #     print("No consecutive ERD detected in focus channels.")
+        #     # Depending on requirements, you might want to return 0 or None
+        #     # return None 
+        
+        if np.all(final_erds_average == 0):
+            print("No consecutive ERD detected in focus channels.")
+            # Depending on requirements, you might want to return 0 or None
+            # return None
+        
+        non_zero_erds = final_erds_average[final_erds_average < 0]
+        return np.nanmean(non_zero_erds) if return_mean and len(non_zero_erds) > 0 else 0.0, all_window_erds_focus_average
+        
+        # if return_mean:
+        #     # Calculate the mean of only the channels that have a non-zero ERD
+        #     non_zero_erds = erd_focus_values[erd_focus_values > 0]
+        #     if len(non_zero_erds) > 0:
+        #         return np.mean(non_zero_erds)
+        #     else:
+        #         return 0.0 # Return 0 if no ERD was found in any focus channel
+        # else:
+        #     return {self.channel_names[i]: mean_erd_all_channels[i] for i in self.focus_channels_indices}
     def calculate_erd_across_trials(self, data_df, markers_df, subject_id=None):
         """
         Calculates average ERD/ERS across all trials for each stimulus type.
