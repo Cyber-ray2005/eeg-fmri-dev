@@ -40,6 +40,7 @@ class ExperimentConfig:
         self.IMAGE_DISPLAY_DURATION_MS = 2000
         self.ERD_FEEDBACK_DURATION_MS = 2000
         self.SHORT_BREAK_DURATION_MS = 1500
+        self.LONG_BREAK_DURATION_MS = 60* 1000  # 60 seconds
 
         # Trial structure
         self.NUM_SIXTH_FINGER_TRIALS_PER_BLOCK = 5
@@ -59,14 +60,14 @@ class ExperimentConfig:
         # Stimulus Paths and Names
         self.IMAGE_FOLDER = "images"
         self.SIXTH_FINGER_IMAGE_NAME = "Hand_SixthFinger_Highlighted.png"
-        self.SIXTH_FINGER_BLUE_IMAGE_NAME = "Hand_SixthFinger_Highlighted_Blue.png"
+        self.SIXTH_FINGER_IMAGE_NAME_BLUE = "Hand_SixthFinger_Highlighted_Blue.png"
         self.NORMAL_FINGER_IMAGE_MAP = {
             "thumb": "Hand_Index_Highlighted.png",
             "index": "Hand_Index_Highlighted.png",
             "middle": "Hand_Middle_Highlighted.png",
             "ring": "Hand_Ring_Highlighted.png",
             "pinky": "Hand_Pinky_Highlighted.png",
-            "thumb_blue": "Hand_Index_Highlighted_Blue.png",
+            "thumb_blue": "Hand_Thumb_Highlighted_Blue.png",
             "index_blue": "Hand_Index_Highlighted_Blue.png",
             "middle_blue": "Hand_Middle_Highlighted_Blue.png",
             "ring_blue": "Hand_Ring_Highlighted_Blue.png",
@@ -96,6 +97,12 @@ class ExperimentConfig:
         self.TRIGGER_MIDDLE_ONSET = 3
         self.TRIGGER_RING_ONSET = 4
         self.TRIGGER_PINKY_ONSET = 5
+        self.TRIGGER_SIXTH_FINGER_ONSET_BLUE = 96
+        self.TRIGGER_THUMB_ONSET_BLUE = 16
+        self.TRIGGER_INDEX_ONSET_BLUE = 32
+        self.TRIGGER_MIDDLE_ONSET_BLUE = 48
+        self.TRIGGER_RING_ONSET_BLUE = 64
+        self.TRIGGER_PINKY_ONSET_BLUE = 80
         self.TRIGGER_CONTROL_STIMULUS_ONSET = 7
         self.TRIGGER_SHORT_BREAK_ONSET = 9
         self.YES_TRIGGER = 11
@@ -112,7 +119,13 @@ class ExperimentConfig:
             "middle": self.TRIGGER_MIDDLE_ONSET,
             "ring": self.TRIGGER_RING_ONSET,
             "pinky": self.TRIGGER_PINKY_ONSET,
-            self.BLANK_CONDITION_NAME: self.TRIGGER_CONTROL_STIMULUS_ONSET
+            self.BLANK_CONDITION_NAME: self.TRIGGER_CONTROL_STIMULUS_ONSET,
+            "sixth_blue": self.TRIGGER_SIXTH_FINGER_ONSET_BLUE,
+            "thumb_blue": self.TRIGGER_THUMB_ONSET_BLUE,
+            "index_blue": self.TRIGGER_INDEX_ONSET_BLUE,
+            "middle_blue": self.TRIGGER_MIDDLE_ONSET_BLUE,
+            "ring_blue": self.TRIGGER_RING_ONSET_BLUE,
+            "pinky_blue": self.TRIGGER_PINKY_ONSET_BLUE,
         }
         
         self.TCP_HOST =  '127.0.0.1'
@@ -149,7 +162,7 @@ class Experiment:
 
         # Display fixation cross
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET) # Trigger for fixation cross
-        self.display.display_fixation_cross(self.config.FIXATION_IN_TRIAL_DURATION_MS)
+        self.display.display_fixation_cross(random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500]))
 
 
 
@@ -158,9 +171,10 @@ class Experiment:
 
         if trial_condition == self.config.BLANK_CONDITION_NAME:
             # self.display.display_control_stimulus(self.config.IMAGE_DISPLAY_DURATION_MS)
-            current_image_surface = self.display.scaled_images["rest"]
+            # current_image_surface = self.display.scaled_images["rest"]
             self.serial_comm.send_trigger(stimulus_trigger_code)
-            self.display.display_image_stimulus(current_image_surface, self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()*0.75))
+            # self.display.display_image_stimulus(current_image_surface, self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()*0.75))
+            self.display.display_message_screen("REST", duration_ms=self.config.IMAGE_DISPLAY_DURATION_MS, font=self.display.FONT_LARGE, bg_color=self.config.GRAY)
 
         elif trial_condition in self.display.scaled_images:
             if stimulus_trigger_code is not None:
@@ -192,10 +206,11 @@ class Experiment:
 
         # Display fixation cross
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET)
-        winsound.Beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
-        self.display.display_fixation_cross(self.config.FIXATION_IN_TRIAL_DURATION_MS)
+        self.display.display_fixation_cross(random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500]))
         
-        stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition)
+        winsound.Beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
+        
+        stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition+"_blue")
         
         if stimulus_trigger_code is not None:
             current_image_surface = self.display.scaled_images[trial_condition+"_blue"]
@@ -239,6 +254,8 @@ class Experiment:
                 return
             
             self.display.display_message_screen("Motor Execution Trials", duration_ms=2000, font=self.display.FONT_LARGE)
+            instruction = "In the next slides, you will see a hand illustration \n with one of the fingers highlighted in #BLUE:BLUE#.\n\n Flex and extend the encircled finger. \n\n Press any key to continue."
+            self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
             
             motor_execution_trails = self.config.NORMAL_FINGER_TYPES + ["sixth"]
             random.shuffle(motor_execution_trails)
@@ -252,7 +269,8 @@ class Experiment:
 
             
             self.display.display_message_screen("Motor Imagery Trials", duration_ms=2000, font=self.display.FONT_LARGE)
-            
+            instruction = " In the next slides , you will see a hand illustration \n with one of teh fingers encircled in #RED:RED#. \n\n Imagine, kinesthetically, flexing and extending the encircled finger. \n Please try to avoid any movement throughout the exercise. \n\n Press any key to continue."
+            self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
 
             for trial_index, condition in enumerate(trial_conditions, 1):
                 self._check_exit_keys()
@@ -320,7 +338,9 @@ class Experiment:
 
     def _show_block_break_screen(self, block_num):
         if block_num < self.config.NUM_BLOCKS:
-            msg = f"End of Block {block_num}.\n\nTake a break.\n\nPress any key to continue to the next block."
+            msg = f"End of Block {block_num}.\n\nTake a break."
+            self.display.display_timer_with_message(msg, self.config.LONG_BREAK_DURATION_MS)
+            msg = "Press any key to continue to the next block."
             self.display.display_message_screen(msg, wait_for_key=True, font=self.display.FONT_MEDIUM)
         else:
             self.display.display_message_screen("All Blocks Completed!", duration_ms=3000, font=self.display.FONT_MEDIUM)

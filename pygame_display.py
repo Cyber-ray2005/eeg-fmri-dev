@@ -10,6 +10,7 @@ class PygameDisplay:
         pygame.font.init()
         self.config = config
         self.screen = self._setup_screen()
+        self.clock = pygame.time.Clock()
         self.FONT_LARGE = pygame.font.Font(None, 74)
         self.FONT_MEDIUM = pygame.font.Font(None, 50)
         self.FONT_SMALL = pygame.font.Font(None, 36)
@@ -74,11 +75,16 @@ class PygameDisplay:
                 self.config.REST_FINGER_IMAGE_NAME, self.config.IMAGE_FOLDER,
                 self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT
             )
+            self.scaled_images["sixth_blue"] = self._load_and_scale_image(
+                self.config.SIXTH_FINGER_IMAGE_NAME_BLUE, self.config.IMAGE_FOLDER,
+                self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT
+            )
             for finger_type, img_name in self.config.NORMAL_FINGER_IMAGE_MAP.items():
                 self.scaled_images[finger_type] = self._load_and_scale_image(
                     img_name, self.config.IMAGE_FOLDER,
                     self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT
                 )
+            print("INFO: All images loaded and scaled successfully.")
         except SystemExit:
             print("CRITICAL: Error loading or scaling images. Ensure 'images' folder and all .png files exist and are valid.")
             pygame.quit()
@@ -451,7 +457,72 @@ class PygameDisplay:
 
         return selected_option == "yes"
 
+    def display_timer_with_message(self, message, duration_ms, font=None, bg_color=None, text_color=None):
+        """
+        Displays a countdown timer with a message.
+        
+        Args:
+            message (str): The message to display above the timer
+            duration_ms (int): Total duration in ms
+            font (pygame.font.Font): Font to use (defaults to FONT_MEDIUM)
+            bg_color (tuple): Background color (defaults to BLACK)
+            text_color (tuple): Text color (defaults to WHITE)
+        """
+        font = font if font else self.FONT_MEDIUM
+        bg_color = bg_color if bg_color else self.config.BLACK
+        text_color = text_color if text_color else self.config.WHITE
+        
+        start_time = time.time()
+        end_time = start_time + duration_ms / 1000.0
+        
+        running = True
+        while running:
+            current_time = time.time()
+            remaining_time = max(0, end_time - current_time)
+            
+            # Convert to minutes:seconds format
+            minutes = int(remaining_time // 60)
+            seconds = int(remaining_time % 60)
+            time_text = f"{minutes:02d}:{seconds:02d}"
+            
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.quit_pygame_and_exit()
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    self.quit_pygame_and_exit()
+            
+            # Draw screen
+            self.screen.fill(bg_color)
 
+            message_lines = message.split('\n')
+            line_height = font.get_linesize()
+            start_y = (self.config.SCREEN_HEIGHT // 2 - 50) - (line_height * (len(message_lines) -1)) / 2
+
+
+            for i, line in enumerate(message_lines):
+                message_surface = font.render(line, True, text_color)
+                # 3. Calculate the rect for each line, adjusting the y position
+                message_rect = message_surface.get_rect(
+                    center=(self.config.SCREEN_WIDTH // 2, start_y + i * line_height)
+                )
+                self.screen.blit(message_surface, message_rect)
+
+
+            # Draw timer
+            timer_surface = self.FONT_LARGE.render(time_text, True, text_color)
+            timer_rect = timer_surface.get_rect(center=(self.config.SCREEN_WIDTH // 2, 
+                                                        self.config.SCREEN_HEIGHT // 2 + 50))
+            self.screen.blit(timer_surface, timer_rect)
+            
+            pygame.display.flip()
+            
+            # Check if timer has expired
+            if remaining_time <= 0:
+                running = False
+            
+            # Small delay to reduce CPU usage
+            pygame.time.wait(10)
     def quit_pygame_and_exit(self):
         pygame.quit()
         sys.exit()

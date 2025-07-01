@@ -35,6 +35,7 @@ class ExperimentConfig:
         self.FIXATION_IN_TRIAL_DURATION_MS = 3000
         self.IMAGE_DISPLAY_DURATION_MS = 3000
         self.SHORT_BREAK_DURATION_MS = 1500
+        self.LONG_BREAK_DURATION_MS = 60000  # 60 seconds
 
         # Trial structure
         self.NUM_SIXTH_FINGER_TRIALS_PER_BLOCK = 15
@@ -54,7 +55,7 @@ class ExperimentConfig:
         self.IMAGE_FOLDER = "images"
         self.SIXTH_FINGER_IMAGE_NAME = "Hand_SixthFinger_Highlighted.png"
         self.REST_FINGER_IMAGE_NAME = "Rest.png"
-        self.SIXTH_FINGER_BLUE_IMAGE_NAME = "Hand_SixthFinger_Highlighted_Blue.png"
+        self.SIXTH_FINGER_IMAGE_NAME_BLUE = "Hand_SixthFinger_Highlighted_Blue.png"
         self.NORMAL_FINGER_IMAGE_MAP = {
             "thumb": "Hand_Index_Highlighted.png",
             "index": "Hand_Index_Highlighted.png",
@@ -91,10 +92,32 @@ class ExperimentConfig:
         self.TRIGGER_MIDDLE_ONSET = 3
         self.TRIGGER_RING_ONSET = 4
         self.TRIGGER_PINKY_ONSET = 5
+        self.TRIGGER_SIXTH_FINGER_ONSET_BLUE = 96
+        self.TRIGGER_THUMB_ONSET_BLUE = 16
+        self.TRIGGER_INDEX_ONSET_BLUE = 32
+        self.TRIGGER_MIDDLE_ONSET_BLUE = 48
+        self.TRIGGER_RING_ONSET_BLUE = 64
+        self.TRIGGER_PINKY_ONSET_BLUE = 80
         self.TRIGGER_CONTROL_STIMULUS_ONSET = 7
         self.TRIGGER_SHORT_BREAK_ONSET = 20
         self.BEEP_FREQUENCY = 1000  # Frequency in Hz for the beep sound
         self.BEEP_DURATION_MS = 100  # Duration in milliseconds for the beep sound
+        
+        self.REST_WORDS=["Table",
+        "Chair",
+        "Door",
+        "Window",
+        "Book",
+        "Pencil",
+        "Street",
+        "Building",
+        "Cloud",
+        "Water",
+        "Tree",
+        "Stone",
+        "Corner",
+        "Box",
+        "Glass"]
 
         # Mapping from trial condition names to stimulus trigger codes
         self.STIMULUS_TRIGGER_MAP = {
@@ -104,7 +127,13 @@ class ExperimentConfig:
             "middle": self.TRIGGER_MIDDLE_ONSET,
             "ring": self.TRIGGER_RING_ONSET,
             "pinky": self.TRIGGER_PINKY_ONSET,
-            self.BLANK_CONDITION_NAME: self.TRIGGER_CONTROL_STIMULUS_ONSET
+            self.BLANK_CONDITION_NAME: self.TRIGGER_CONTROL_STIMULUS_ONSET,
+            "sixth_blue": self.TRIGGER_SIXTH_FINGER_ONSET_BLUE,
+            "thumb_blue": self.TRIGGER_THUMB_ONSET_BLUE,
+            "index_blue": self.TRIGGER_INDEX_ONSET_BLUE,
+            "middle_blue": self.TRIGGER_MIDDLE_ONSET_BLUE,
+            "ring_blue": self.TRIGGER_RING_ONSET_BLUE,
+            "pinky_blue": self.TRIGGER_PINKY_ONSET_BLUE,
         }
 
 
@@ -137,8 +166,7 @@ class Experiment:
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET)
         self.display.display_fixation_cross(random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500]))
         winsound.Beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)  # Beep sound to indicate trial start
-        stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition)
-        
+        stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition+"_blue")
         if stimulus_trigger_code is not None:
             current_image_surface = self.display.scaled_images[trial_condition+"_blue"]
             self.serial_comm.send_trigger(stimulus_trigger_code)
@@ -161,10 +189,10 @@ class Experiment:
 
         if trial_condition == self.config.BLANK_CONDITION_NAME:
             # self.display.display_blank_screen(self.config.IMAGE_DISPLAY_DURATION_MS)
-            current_image_surface = self.display.scaled_images["rest"]
+            # current_image_surface = self.display.scaled_images["rest"]
             self.serial_comm.send_trigger(stimulus_trigger_code)
             # self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()*0.75))
-            self.display.display_message_screen("REST", duration_ms=self.config.IMAGE_DISPLAY_DURATION_MS, font=self.display.FONT_LARGE)
+            self.display.display_message_screen("REST", duration_ms=self.config.IMAGE_DISPLAY_DURATION_MS, font=self.display.FONT_LARGE, bg_color=self.config.GRAY)
         elif trial_condition in self.display.scaled_images:
             if stimulus_trigger_code is not None:
                 current_image_surface = self.display.scaled_images[trial_condition]
@@ -187,7 +215,6 @@ class Experiment:
     def run_experiment(self):
         self.serial_comm.initialize()
         self.display.load_stimulus_images()
-
         intro_text = "Welcome to the Motor Imagery Experiment!\n\n"
         if self.config.INTRO_WAIT_KEY_PRESS:
             intro_text += "Press any key to begin."
@@ -198,9 +225,9 @@ class Experiment:
 
         # self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_START)
         self.display.display_message_screen("Motor Execution Trials", duration_ms=2000, font=self.display.FONT_LARGE)
-        instruction = "In the next slides, you will see a hand illustration \n with one of the fingers highlighted #BLUE:BLUE#.\n\n Flex and extend the encircled finger. \n\n Press any key to continue."
+        instruction = "In the next slides, you will see a hand illustration \n with one of the fingers highlighted in #BLUE:BLUE#.\n\n Flex and extend the encircled finger. \n\n Press any key to continue."
         self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
-        motor_execution_trails = self.config.NORMAL_FINGER_TYPES
+        motor_execution_trails = self.config.NORMAL_FINGER_TYPES + ["sixth"]
         random.shuffle(motor_execution_trails)
         
         for trial_index, condition in enumerate(motor_execution_trails, 1):
@@ -209,10 +236,10 @@ class Experiment:
 
         
         self.display.display_message_screen("Motor Imagery Trials", duration_ms=2000, font=self.display.FONT_LARGE)
-        instruction = " In the next slides , you will see a hand illustration \n with one of teh fingers encircled #RED:RED#. \n\n Imagine, kinesthetically, flexing and extending the encircled finger.  \n\n Press any key to continue."
+        instruction = " In the next slides , you will see a hand illustration \n with one of teh fingers encircled in #RED:RED#. \n\n Imagine, kinesthetically, flexing and extending the encircled finger. \n Please try to avoid any movement throughout the exercise. \n\n Press any key to continue."
         self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
         for block_num in range(1, self.config.NUM_BLOCKS + 1):
-            # self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_START)
+            self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_START)
             self.display.display_loading_screen("Generating trials for Block...", font=self.display.FONT_MEDIUM, bg_color=self.config.BLACK, text_color=self.config.WHITE)
             current_block_trial_conditions = self.trial_generator.generate_trial_list_for_block()
 
@@ -252,8 +279,10 @@ class Experiment:
             block_end_server_response = "" # Placeholder for server response
 
             if block_num < self.config.NUM_BLOCKS:
-                long_break_message = f"End of Block {block_num}.\n\nTake a break.\n\nPress any key to continue to the next block."
-                self.display.display_message_screen(long_break_message, wait_for_key=True, font=self.display.FONT_MEDIUM, server_response=block_end_server_response)
+                msg = f"End of Block {block_num}.\n\nTake a break."
+                self.display.display_timer_with_message(msg, self.config.LONG_BREAK_DURATION_MS)
+                msg = "Press any key to continue to the next block."
+                self.display.display_message_screen(msg, wait_for_key=True, font=self.display.FONT_MEDIUM)
             else:
                 self.display.display_message_screen("All Blocks Completed!", duration_ms=3000, font=self.display.FONT_MEDIUM, server_response=block_end_server_response)
 
