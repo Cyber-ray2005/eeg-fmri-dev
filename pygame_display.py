@@ -10,7 +10,6 @@ class PygameDisplay:
         pygame.font.init()
         self.config = config
         self.screen = self._setup_screen()
-        self.clock = pygame.time.Clock()
         self.FONT_LARGE = pygame.font.Font(None, 74)
         self.FONT_MEDIUM = pygame.font.Font(None, 50)
         self.FONT_SMALL = pygame.font.Font(None, 36)
