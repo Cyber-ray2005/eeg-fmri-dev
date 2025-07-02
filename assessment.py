@@ -102,6 +102,8 @@ class ExperimentConfig:
         self.TRIGGER_SHORT_BREAK_ONSET = 20
         self.BEEP_FREQUENCY = 1000  # Frequency in Hz for the beep sound
         self.BEEP_DURATION_MS = 100  # Duration in milliseconds for the beep sound
+        self.YES_TRIGGER = 11
+        self.NO_TRIGGER = 12
         
         self.REST_WORDS=["Table",
         "Chair",
@@ -207,7 +209,11 @@ class Experiment:
             self.display.display_message_screen(f"Error: Missing stimulus for {trial_condition}", 2000, font=self.display.FONT_SMALL, bg_color=self.config.RED)
 
         if trial_number_global % 5 == 0:
-            self.display.ask_yes_no_question("Did you perform the motor imagery?")
+            yes = self.display.ask_yes_no_question("Did you perform motor imagery?")
+            if yes:
+                self.serial_comm.send_trigger(self.config.YES_TRIGGER)
+            else:
+                self.serial_comm.send_trigger(self.config.NO_TRIGGER)
             
         
         return trial_condition
@@ -230,13 +236,13 @@ class Experiment:
         motor_execution_trails = self.config.NORMAL_FINGER_TYPES + ["sixth"]
         random.shuffle(motor_execution_trails)
         
-        for trial_index, condition in enumerate(motor_execution_trails, 1):
-            presented_condition = self.run_motor_execution_trial(condition)
-            self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
+        # for trial_index, condition in enumerate(motor_execution_trails, 1):
+        #     presented_condition = self.run_motor_execution_trial(condition)
+        #     self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
 
         
         self.display.display_message_screen("Motor Imagery Trials", duration_ms=2000, font=self.display.FONT_LARGE)
-        instruction = " In the next slides , you will see a hand illustration \n with one of teh fingers encircled in #RED:RED#. \n\n Imagine, kinesthetically, flexing and extending the encircled finger. \n Please try to avoid any movement throughout the exercise. \n\n Press any key to continue."
+        instruction = " In the next slides , you will see a hand illustration \n with one of the fingers encircled in #RED:RED#. \n\n Imagine, kinesthetically, flexing and extending the encircled finger. \n Please try to avoid any movement throughout the exercise. \n\n Press any key to continue."
         self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
         for block_num in range(1, self.config.NUM_BLOCKS + 1):
             self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_START)
@@ -272,7 +278,6 @@ class Experiment:
 
                 # self.serial_comm.send_trigger(self.config.TRIGGER_SHORT_BREAK_ONSET)
                 self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
-
             # self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_END)
             # In a real scenario, block_end_server_response would come from a server.
             # For now, we'll use a placeholder or empty string.
@@ -286,6 +291,7 @@ class Experiment:
             else:
                 self.display.display_message_screen("All Blocks Completed!", duration_ms=3000, font=self.display.FONT_MEDIUM, server_response=block_end_server_response)
 
+            
         # self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_END)
         self.display.display_message_screen("Experiment Finished!\n\nThank you for your participation.", duration_ms=5000, wait_for_key=True, font=self.display.FONT_LARGE)
 

@@ -30,6 +30,7 @@ class ExperimentConfig:
         self.BLACK = (0, 0, 0)
         self.GRAY = (150, 150, 150)
         self.RED = (255, 0, 0)
+        self.BLUE = (0, 0, 255)
         self.CIRCLE_COLOR = (200, 200, 200)
 
         # Durations (in milliseconds)
@@ -192,7 +193,7 @@ class Experiment:
             self.display.display_message_screen(f"Error: Missing stimulus for {trial_condition}", 2000, font=self.display.FONT_SMALL, bg_color=self.config.RED)
 
         if trial_number_global % 5 == 0:
-            yes = self.display.ask_yes_no_question("Did you perform motor imagery correctly?")
+            yes = self.display.ask_yes_no_question("Did you perform motor imagery?")
             if yes:
                 self.serial_comm.send_trigger(self.config.YES_TRIGGER)
             else:
