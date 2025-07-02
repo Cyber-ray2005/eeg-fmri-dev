@@ -68,7 +68,7 @@ class PygameDisplay:
                 self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT
             )
             self.scaled_images["sixth_blue"] = self._load_and_scale_image(
-                self.config.SIXTH_FINGER_BLUE_IMAGE_NAME, self.config.IMAGE_FOLDER,
+                self.config.SIXTH_FINGER_IMAGE_NAME_BLUE, self.config.IMAGE_FOLDER,
                 self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT
             )
             self.scaled_images["rest"] = self._load_and_scale_image(
