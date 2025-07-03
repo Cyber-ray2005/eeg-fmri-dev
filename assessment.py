@@ -10,6 +10,7 @@ from pygame_display import PygameDisplay
 from logger import TrialDataLogger
 from serial_communication import SerialCommunication
 import winsound
+from logger import TextLogger
 
 # --- Configuration Class ---
 class ExperimentConfig:
@@ -151,6 +152,7 @@ class Experiment:
             "filename_template": "{participant_id}_session_log_{timestamp}.csv",
             "fieldnames": ["participant_id", "block", "trial_num", "condition", "response_time", "timestamp"]
         })
+        self.logger = TextLogger()
         self.participant_id = "P" + str(random.randint(100, 999))
         self.er_data_queue = queue.Queue() # For potential future ER data reception
         self.tcp_client = None # Placeholder for TCP client
@@ -163,7 +165,8 @@ class Experiment:
     def run_motor_execution_trial(self, trial_condition):
         print(f"Motor Execution Trial, Condition: {trial_condition} "
               f"(Category: {self.trial_generator.get_condition_category(trial_condition)})")
-
+        self.logger.log(f"Motor Execution Trial, Condition: {trial_condition} "
+                        f"(Category: {self.trial_generator.get_condition_category(trial_condition)})")
         # Display fixation cross
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET)
         self.display.display_fixation_cross(random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500]))
@@ -178,7 +181,8 @@ class Experiment:
     def run_trial(self, trial_number_global, trial_condition):
         print(f"Global Trial: {trial_number_global}, Condition: {trial_condition} "
               f"(Category: {self.trial_generator.get_condition_category(trial_condition)})")
-
+        self.logger.log(f"Global Trial: {trial_number_global}, Condition: {trial_condition} "
+                        f"(Category: {self.trial_generator.get_condition_category(trial_condition)})")
         # Display fixation cross
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET) # Trigger for fixation cross
         # self.display.display_fixation_cross(self.config.FIXATION_IN_TRIAL_DURATION_MS)
@@ -214,6 +218,7 @@ class Experiment:
                 self.serial_comm.send_trigger(self.config.YES_TRIGGER)
             else:
                 self.serial_comm.send_trigger(self.config.NO_TRIGGER)
+            self.logger.log(f"Participant response: {'Yes' if yes else 'No'} for trial {trial_number_global}")
             
         
         return trial_condition
