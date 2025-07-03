@@ -11,6 +11,8 @@ from logger import TrialDataLogger
 from serial_communication import SerialCommunication
 import winsound
 from logger import TextLogger
+from EmbodimentExcercise import EmbodimentExercise
+from dotenv import load_dotenv
 
 # --- Configuration Class ---
 class ExperimentConfig:
@@ -18,7 +20,7 @@ class ExperimentConfig:
         # Screen dimensions
         self.SCREEN_WIDTH = 1000
         self.SCREEN_HEIGHT = 700
-        self.FULLSCREEN_MODE = True
+        self.FULLSCREEN_MODE = False
 
         # Colors
         self.WHITE = (255, 255, 255)
@@ -78,7 +80,7 @@ class ExperimentConfig:
         self.CATEGORY_BLANK = "blank_cat"
 
         # Serial Port Configuration and Triggers
-        self.SERIAL_PORT = 'COM15'
+        self.SERIAL_PORT = os.environ.get("COM_PORT", "COM4")  # Default to COM14 if not set
         self.BAUD_RATE = 9600
 
         # Define trigger values (bytes)
@@ -103,22 +105,23 @@ class ExperimentConfig:
         self.TRIGGER_SHORT_BREAK_ONSET = 20
         self.BEEP_FREQUENCY = 1000  # Frequency in Hz for the beep sound
         self.BEEP_DURATION_MS = 100  # Duration in milliseconds for the beep sound
+        self.YES_TRIGGER = 11
+        self.NO_TRIGGER = 12
         
-        self.REST_WORDS=["Table",
+        self.CHARACTERS_TO_WRITE=["Table",
         "Chair",
         "Door",
         "Window",
         "Book",
         "Pencil",
         "Street",
-        "Building",
         "Cloud",
         "Water",
         "Tree",
         "Stone",
-        "Corner",
         "Box",
         "Glass"]
+        self.NUMBER_OF_CHARACTERS_TO_WRITE = 5
 
         # Mapping from trial condition names to stimulus trigger codes
         self.STIMULUS_TRIGGER_MAP = {
@@ -142,6 +145,7 @@ class Experiment:
     def __init__(self):
         self.config = ExperimentConfig()
         self.display = PygameDisplay(self.config)
+        self.emnbodiment_exercise = EmbodimentExercise(self.config)
         self.serial_comm = SerialCommunication(self.config.SERIAL_PORT, self.config.BAUD_RATE)
         self.trial_generator = TrialGenerator(self.config)
         self.data_logger = TrialDataLogger({
@@ -172,9 +176,9 @@ class Experiment:
         stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition+"_blue")
         if stimulus_trigger_code is not None:
             current_image_surface = self.display.scaled_images[trial_condition+"_blue"]
+            self.serial_comm.send_trigger(stimulus_trigger_code)
             self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()*0.75))
 
-            self.serial_comm.send_trigger(stimulus_trigger_code)
 
     def run_trial(self, trial_number_global, trial_condition):
         print(f"Global Trial: {trial_number_global}, Condition: {trial_condition} "
@@ -211,11 +215,13 @@ class Experiment:
             self.display.display_message_screen(f"Error: Missing stimulus for {trial_condition}", 2000, font=self.display.FONT_SMALL, bg_color=self.config.RED)
 
         if trial_number_global % 5 == 0:
-            self.display.ask_yes_no_question("Did you perform the motor imagery?")
-            
-            
-            self.logger.log(f"Trial {trial_number_global}: User response recorded.")
-            
+            yes = self.display.ask_yes_no_question("Did you perform motor imagery?")
+            if yes:
+                self.serial_comm.send_trigger(self.config.YES_TRIGGER)
+            else:
+                self.serial_comm.send_trigger(self.config.NO_TRIGGER)
+            self.logger.log(f"Participant response: {'Yes' if yes else 'No'} for trial {trial_number_global}")
+                        
         
         return trial_condition
 
@@ -229,8 +235,9 @@ class Experiment:
         else:
             intro_text += f"The experiment will begin in {self.config.INTRO_DURATION_MS/1000:.0f} seconds."
             self.display.display_message_screen(intro_text, duration_ms=self.config.INTRO_DURATION_MS, font=self.display.FONT_LARGE)
-
-        # self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_START)
+        # self.display.display_message_screen("Embodiment Exercise", duration_ms=2000, font=self.display.FONT_LARGE)
+        self.emnbodiment_exercise.run()  # Run the embodiment exercise before starting the main experiment
+        self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_START)
         self.display.display_message_screen("Motor Execution Trials", duration_ms=2000, font=self.display.FONT_LARGE)
         instruction = "In the next slides, you will see a hand illustration \n with one of the fingers highlighted in #BLUE:BLUE#.\n\n Flex and extend the encircled finger. \n\n Press any key to continue."
         self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
@@ -243,7 +250,7 @@ class Experiment:
 
         
         self.display.display_message_screen("Motor Imagery Trials", duration_ms=2000, font=self.display.FONT_LARGE)
-        instruction = " In the next slides , you will see a hand illustration \n with one of teh fingers encircled in #RED:RED#. \n\n Imagine, kinesthetically, flexing and extending the encircled finger. \n Please try to avoid any movement throughout the exercise. \n\n Press any key to continue."
+        instruction = " In the next slides , you will see a hand illustration \n with one of the fingers encircled in #RED:RED#. \n\n Imagine, kinesthetically, flexing and extending the encircled finger. \n Please try to avoid any movement throughout the exercise. \n\n Press any key to continue."
         self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
         for block_num in range(1, self.config.NUM_BLOCKS + 1):
             self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_START)
@@ -279,7 +286,6 @@ class Experiment:
 
                 # self.serial_comm.send_trigger(self.config.TRIGGER_SHORT_BREAK_ONSET)
                 self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
-
             # self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_END)
             # In a real scenario, block_end_server_response would come from a server.
             # For now, we'll use a placeholder or empty string.
@@ -293,6 +299,7 @@ class Experiment:
             else:
                 self.display.display_message_screen("All Blocks Completed!", duration_ms=3000, font=self.display.FONT_MEDIUM, server_response=block_end_server_response)
 
+            
         # self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_END)
         self.display.display_message_screen("Experiment Finished!\n\nThank you for your participation.", duration_ms=5000, wait_for_key=True, font=self.display.FONT_LARGE)
 
@@ -307,6 +314,7 @@ class Experiment:
 
 
 if __name__ == "__main__":
+    load_dotenv() 
     config = ExperimentConfig()
     expected_total_trials = (config.NUM_SIXTH_FINGER_TRIALS_PER_BLOCK +
                              (config.NUM_EACH_NORMAL_FINGER_PER_BLOCK * config.NUM_NORMAL_FINGERS) +

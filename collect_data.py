@@ -11,6 +11,8 @@ from colorama import Fore, Style
 from livestream_receiver import LivestreamReceiver, Marker
 from emulator import Emulator
 
+from ERDCalculator import ERDCalculator
+
 
 # --- Configuration Class ---
 class EEGConfig:
@@ -24,7 +26,7 @@ class EEGConfig:
         self.FOCUS_CHANNELS = [7, 39, 42, 11] # C3, C1, CP3, CP1 (0-indexed)
         self.FOCUS_MARKERS = ['S  1', 'S  2', 'S  3', 'S  4', 'S  5', 'S  6']
         self.LOW_CUT = 8.0 # Hz (alpha band)
-        self.HIGH_CUT = 13.0 # Hz (alpha band)
+        self.HIGH_CUT = 30.0 # Hz (alpha band)
         self.FILTER_ORDER = 5
 
         # Epoching Parameters
@@ -256,7 +258,16 @@ class EEGDataCollector:
         if not self.receiver.initialize():
             return # Exit if connection fails
 
-        self.data_processor = DataProcessor(self.config, self.receiver.sampling_frequency, self.receiver.channel_count)
+        # self.data_processor = DataProcessor(self.config, self.receiver.sampling_frequency, self.receiver.channel_count)
+        self.data_processor = ERDCalculator(
+            self.receiver.sampling_frequency, 
+            epoch_pre_stimulus_seconds=self.config.SECONDS_BEFORE_MARKER,
+            epoch_post_stimulus_seconds=self.config.SECONDS_AFTER_MARKER,
+            bandpass_high=self.config.HIGH_CUT,
+            bandpass_low=self.config.LOW_CUT,
+            channel_names= self.receiver.channel_names,
+            focus_channels_indices= self.config.FOCUS_CHANNELS,
+            )
         self.broadcaster.initialize()
 
         # Calculate buffer size based on processing needs

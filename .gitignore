@@ -4,3 +4,6 @@ experiment_logs/
 results/
 *.ipynb
 yonas.txt
+logs/
+exercise_logs/
+.env
