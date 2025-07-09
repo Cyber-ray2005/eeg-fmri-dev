@@ -1,7 +1,13 @@
 import socket # --- NEW: Import socket for TCP communication ---
 import time
 
+# --- tcp_client.py: TCP Client Utility for ERD Feedback ---
 class TCPClient:
+    """
+    Implements a TCP client for connecting to the ERD broadcaster.
+    Supports background listening (in a thread), data queueing, and clean shutdown.
+    Used by experiment scripts to receive live ERD feedback.
+    """
     def __init__(self, host, port):
         self.host = host
         self.port = port

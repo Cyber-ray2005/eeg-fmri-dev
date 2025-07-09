@@ -1,6 +1,6 @@
 
-from pygame_display import PygameDisplay
-from logger import TextLogger
+from utils.pygame_display import PygameDisplay
+from utils.logger import TextLogger
 import pygame
 import random
 

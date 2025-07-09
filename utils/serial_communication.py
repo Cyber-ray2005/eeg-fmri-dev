@@ -1,7 +1,12 @@
 import serial
 import time
 
+# --- serial_communication.py: Serial Port Trigger Utility ---
 class SerialCommunication:
+    """
+    Manages serial port communication for sending event triggers to external hardware (e.g., EEG amplifiers).
+    Handles port initialization, trigger transmission, and safe closure.
+    """
     def __init__(self, port, baudrate):
         self.port = port
         self.baudrate = baudrate

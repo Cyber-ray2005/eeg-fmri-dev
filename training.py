@@ -9,23 +9,27 @@ import os
 import queue
 import json
 
-from trial_generator import TrialGenerator
-from pygame_display import PygameDisplay
-from logger import TrialDataLogger
-from serial_communication import SerialCommunication
-from tcp_client import TCPClient # --- NEW: Import the TCP client class ---
+from utils.trial_generator import TrialGenerator
+from utils.pygame_display import PygameDisplay
+from utils.logger import TrialDataLogger
+from utils.serial_communication import SerialCommunication
+from utils.tcp_client import TCPClient # --- NEW: Import the TCP client class ---
 import winsound
 
 
 # --- Experiment Parameters ---
 class ExperimentConfig:
+    """
+    Holds all configuration parameters for the experiment, including display, timing, trial structure,
+    stimulus mapping, serial port, and TCP communication settings.
+    """
     def __init__(self):
         # Screen dimensions
         self.SCREEN_WIDTH = 1000
         self.SCREEN_HEIGHT = 700
         self.FULLSCREEN_MODE = True
 
-        # Colors
+        # Colors (RGB tuples)
         self.WHITE = (255, 255, 255)
         self.BLACK = (0, 0, 0)
         self.GRAY = (150, 150, 150)
@@ -135,6 +139,10 @@ class ExperimentConfig:
 
 
 class Experiment:
+    """
+    Main experiment class that manages the experiment flow, including block and trial structure,
+    hardware communication, data logging, and feedback display.
+    """
     def __init__(self):
         self.config = ExperimentConfig()
         self.display = PygameDisplay(self.config)
@@ -145,7 +153,7 @@ class Experiment:
             "filename_template": "{participant_id}_session_log_{timestamp}.csv",
             "fieldnames": ["participant_id", "block", "trial_num", "condition", "response_time", "timestamp", "server_feedback"]
         })
-        self.participant_id = "P" + str(random.randint(100, 999))
+        self.participant_id = "P" + str(random.randint(100, 999)) # Random participant ID for session
         self.er_data_queue = queue.Queue() # For potential future ER data reception
         self.tcp_client = TCPClient(self.config.TCP_HOST, self.config.TCP_PORT)
         self.erd_history = [] # Placeholder for ERD history
@@ -153,11 +161,18 @@ class Experiment:
         self.stop_listener_event = threading.Event() # Event to signal the listener thread to stop
 
     def _close_all_connections(self):
+        """
+        Closes all hardware and network connections (serial, TCP).
+        """
         self.serial_comm.close()
         if self.tcp_client: # If you implement a TCP client, uncomment this
             self.tcp_client.close(self.stop_listener_event)
 
     def run_trial(self, trial_number_global, trial_condition):
+        """
+        Runs a single imagery trial: shows fixation, stimulus, and collects response.
+        Sends triggers and displays appropriate images/messages.
+        """
         print(f"Global Trial: {trial_number_global}, Condition: {trial_condition} "
               f"(Category: {self.trial_generator.get_condition_category(trial_condition)})")
 
@@ -165,19 +180,17 @@ class Experiment:
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET) # Trigger for fixation cross
         self.display.display_fixation_cross(random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500]))
 
-
-
+        # Play beep to indicate stimulus onset
         winsound.Beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
         stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition)
 
         if trial_condition == self.config.BLANK_CONDITION_NAME:
-            # self.display.display_control_stimulus(self.config.IMAGE_DISPLAY_DURATION_MS)
-            # current_image_surface = self.display.scaled_images["rest"]
+            # Blank (rest) trial: show rest message
             self.serial_comm.send_trigger(stimulus_trigger_code)
-            # self.display.display_image_stimulus(current_image_surface, self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()*0.75))
             self.display.display_message_screen("REST", duration_ms=self.config.IMAGE_DISPLAY_DURATION_MS, font=self.display.FONT_LARGE, bg_color=self.config.GRAY)
 
         elif trial_condition in self.display.scaled_images:
+            # Show the appropriate finger image
             if stimulus_trigger_code is not None:
                 current_image_surface = self.display.scaled_images[trial_condition]
                 self.serial_comm.send_trigger(stimulus_trigger_code)
@@ -192,6 +205,7 @@ class Experiment:
             print(f"Error: Unknown trial condition or image key '{trial_condition}'.")
             self.display.display_message_screen(f"Error: Missing stimulus for {trial_condition}", 2000, font=self.display.FONT_SMALL, bg_color=self.config.RED)
 
+        # Ask for motor imagery confirmation every 5 trials
         if trial_number_global % 5 == 0:
             yes = self.display.ask_yes_no_question("Did you perform motor imagery?")
             if yes:
@@ -202,6 +216,9 @@ class Experiment:
         return trial_condition
     
     def run_motor_execution_trial(self, trial_number_global, trial_condition):
+        """
+        Runs a single motor execution trial (with blue-highlighted finger images).
+        """
         print(f"Motor Execution Trial: {trial_number_global}, Condition: {trial_condition} "
               f"(Category: {self.trial_generator.get_condition_category(trial_condition)})")
 
@@ -219,6 +236,9 @@ class Experiment:
             self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()*0.75))
 
     def _initialize_hardware_and_display(self):
+        """
+        Initializes serial port, loads images, and starts TCP listener thread if possible.
+        """
         self.serial_comm.initialize()
         self.display.load_stimulus_images()
 
@@ -234,6 +254,9 @@ class Experiment:
             print("Warning: TCP connection failed. Proceeding without TCP data reception.")
 
     def _show_intro_screen(self):
+        """
+        Displays the experiment introduction screen, waiting for key press or timeout.
+        """
         intro_text = "Welcome to the Motor Imagery Experiment!\n\nPlease focus on the stimulus presented.\n\n"
         if self.config.INTRO_WAIT_KEY_PRESS:
             intro_text += "Press any key to begin."
@@ -243,6 +266,10 @@ class Experiment:
             self.display.display_message_screen(intro_text, duration_ms=self.config.INTRO_DURATION_MS, font=self.display.FONT_LARGE)
 
     def _run_block(self, block_num):
+        """
+        Runs a single block of the experiment, including both motor execution and imagery trials.
+        Handles trial randomization, feedback, and breaks.
+        """
         self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_START)
         self._drain_server_queue()
 
@@ -254,6 +281,7 @@ class Experiment:
                 self._handle_critical_error("Trial list length mismatch.")
                 return
             
+            # Motor execution phase
             self.display.display_message_screen("Motor Execution Trials", duration_ms=2000, font=self.display.FONT_LARGE)
             instruction = "In the next slides, you will see a hand illustration \n with one of the fingers highlighted in #BLUE:BLUE#.\n\n Flex and extend the encircled finger. \n\n Press any key to continue."
             self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
@@ -268,7 +296,7 @@ class Experiment:
                 presented_condition = self.run_motor_execution_trial(global_trial_num, condition)
                 self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
 
-            
+            # Motor imagery phase
             self.display.display_message_screen("Motor Imagery Trials", duration_ms=2000, font=self.display.FONT_LARGE)
             instruction = " In the next slides , you will see a hand illustration \n with one of the fingers encircled in #RED:RED#. \n\n Imagine, kinesthetically, flexing and extending the encircled finger. \n Please try to avoid any movement throughout the exercise. \n\n Press any key to continue."
             self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
@@ -283,6 +311,9 @@ class Experiment:
         self._show_block_break_screen(block_num)
 
     def _handle_trial_feedback(self, block_num, trial_in_block, global_trial_num, condition):
+        """
+        Handles feedback after each trial: logs data, displays ERD feedback, and manages breaks.
+        """
         server_feedback = self._get_server_feedback()
         erd_value = self._extract_erd_value(server_feedback)
 
@@ -304,6 +335,9 @@ class Experiment:
         self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
 
     def _get_server_feedback(self):
+        """
+        Retrieves the latest feedback from the TCP server (if available).
+        """
         if not self.tcp_client.socket:
             return {}
         try:
@@ -316,6 +350,10 @@ class Experiment:
             return {}
 
     def _extract_erd_value(self, feedback):
+        """
+        Extracts the ERD value from the server feedback dictionary.
+        Returns 0.0 if not present or invalid.
+        """
         try:
             erd = float(feedback.get("erd_percent", 0.0))
             print(f"Received ERD value: {erd}")
@@ -325,6 +363,9 @@ class Experiment:
             return 0.0
 
     def _drain_server_queue(self):
+        """
+        Empties the received data queue, keeping only the latest server response.
+        """
         latest_response = ""
         while not self.received_data_queue.empty():
             latest_response = self.received_data_queue.get_nowait()
@@ -332,12 +373,18 @@ class Experiment:
             print(f"Latest server response: {latest_response}")
 
     def _check_exit_keys(self):
+        """
+        Checks for quit or escape key events to allow graceful exit.
+        """
         for event in pygame.event.get():
             if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
                 self._close_all_connections()
                 self.display.quit_pygame_and_exit()
 
     def _show_block_break_screen(self, block_num):
+        """
+        Displays a break/timer screen between blocks, or a completion message at the end.
+        """
         if block_num < self.config.NUM_BLOCKS:
             msg = f"End of Block {block_num}.\n\nTake a break."
             self.display.display_timer_with_message(msg, self.config.LONG_BREAK_DURATION_MS)
@@ -347,6 +394,9 @@ class Experiment:
             self.display.display_message_screen("All Blocks Completed!", duration_ms=3000, font=self.display.FONT_MEDIUM)
 
     def _end_experiment(self):
+        """
+        Displays the end-of-experiment message and saves data.
+        """
         self.display.display_message_screen("Experiment Finished!\n\nThank you for your participation.", duration_ms=5000, wait_for_key=True, font=self.display.FONT_LARGE)
 
         saved_file = self.data_logger.save_data(self.participant_id)
@@ -359,12 +409,18 @@ class Experiment:
         self.display.quit_pygame_and_exit()
 
     def _handle_critical_error(self, message):
+        """
+        Handles critical errors by displaying a message and exiting the experiment.
+        """
         print(f"CRITICAL Error: {message}")
         self.display.display_message_screen(f"CRITICAL Error: {message}", 5000, bg_color=self.config.RED)
         self._close_all_connections()
         self.display.quit_pygame_and_exit()
 
     def run_experiment(self):
+        """
+        Main experiment loop: initializes hardware, runs all blocks, and ends experiment.
+        """
         self._initialize_hardware_and_display()
         self._show_intro_screen()
 
@@ -377,6 +433,7 @@ class Experiment:
 # --- Main Experiment Loop ---
 
 if __name__ == "__main__":
+    # Validate trial configuration before running
     config = ExperimentConfig()
     expected_total_trials = (config.NUM_SIXTH_FINGER_TRIALS_PER_BLOCK +
                              (config.NUM_EACH_NORMAL_FINGER_PER_BLOCK * config.NUM_NORMAL_FINGERS) +

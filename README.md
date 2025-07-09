@@ -13,8 +13,8 @@ This project provides a comprehensive suite of tools for conducting motor imager
     * **Comprehensive Data Logging:** Saves raw EEG data (as `.npy` files) and associated markers (as `.csv`) for post-experiment analysis in the `data/` directory.
 
 * **Experiment Phases (`training.py`, `assessment.py`):**
-    * **`training.py`**
-    * **`assessment.py`**: Used for formal assessment of motor imagery performance, typically with a fixed protocol and performance metrics.
+    * **`training.py`**: Used for practice or familiarization, may include live feedback.
+    * **`assessment.py`**: Used for formal assessment of motor imagery performance, with a fixed protocol, embodiment exercise, and detailed data logging. No live feedback is provided to participants.
     * Both leverage `pygame_display.py` for visual stimuli and `serial_communication.py` for precise trigger synchronization with EEG recording systems.
     * Trial sequences are managed by `trial_generator.py` to ensure randomized yet constrained stimulus presentation.
 
@@ -31,6 +31,40 @@ This project provides a comprehensive suite of tools for conducting motor imager
     * `logger.py`: A utility for standardized logging.
     * `client.py`, `tcp_client.py`: Generic TCP client implementations, potentially for testing or simple consumption of broadcasted data.
     * `read_npy.py`: A utility to quickly read saved NumPy (`.npy`) EEG data files.
+
+---
+
+## 📝 About `assessment.py`
+
+**`assessment.py`** is designed for the *formal assessment* of motor imagery performance, typically following a fixed protocol. It is similar in structure to `training.py` but is intended for use in the main experimental session, where data is collected for analysis and performance metrics.
+
+**Key features and flow:**
+- **Formal Protocol:** Implements a stricter, assessment-oriented protocol, often with more trials per block and a fixed number of blocks, suitable for data collection and analysis.
+- **Embodiment Exercise:** Includes a pre-experiment embodiment exercise to help participants establish a mental representation of the sixth finger.
+- **No Live ERD Feedback:** Unlike `training.py`, which may provide live ERD feedback to participants, `assessment.py` typically does not display real-time feedback, focusing instead on unbiased data collection.
+- **Data Logging:** Saves detailed trial-by-trial data (including block, trial number, condition, and timestamp) to the `experiment_logs/` directory for later analysis.
+- **Motor Execution and Imagery:** Each session includes both motor execution (actual movement) and motor imagery (imagination only) phases, with randomized and balanced trial sequences.
+- **Configuration:** All experiment parameters (timings, trial counts, triggers, etc.) are centralized in the `ExperimentConfig` class for easy modification.
+
+Use `assessment.py` for the main experimental session where you want to formally assess and record participants' motor imagery performance, following a standardized protocol.
+
+---
+
+## 📝 Code Structure & Documentation
+
+All major scripts and modules in this project are **thoroughly commented and documented**. Each class, method, and major code block includes docstrings and comments explaining its purpose, logic, and usage. This makes it easy for new users and collaborators to:
+
+- Understand the experiment flow and data processing pipeline.
+- Modify experiment parameters, trial logic, or data handling.
+- Extend the codebase for new experimental protocols or hardware.
+
+**Where to look for explanations:**
+- **`collect_data.py`**: Contains detailed comments on EEG data acquisition, real-time processing, ERD calculation, and broadcasting.
+- **`training.py`**: Explains the experiment structure, block/trial logic, hardware communication, and feedback mechanisms.
+- **`assessment.py`**: Documents the formal assessment protocol, including the embodiment exercise, block/trial structure, and data logging for analysis.
+- **Utility modules** (in `utils/`): Each has docstrings and inline comments describing their role (e.g., stimulus display, serial communication, trial generation).
+
+If you are new to the codebase, start by reading the docstrings at the top of each main class and method in `collect_data.py`, `training.py`, and `assessment.py`.
 
 ---
 

@@ -4,23 +4,35 @@ import sys
 import os
 import re
 
+# --- PygameDisplay: Visual Presentation Utility for Experiments ---
 class PygameDisplay:
+    """
+    Handles all visual presentation for the experiment using Pygame.
+    Features include fullscreen/windowed display, image loading/scaling, fixation cross,
+    feedback bars, messages, timers, and user input handling.
+    """
     def __init__(self, config):
+        # Initialize Pygame and fonts
         pygame.init()
         pygame.font.init()
         self.config = config
+        # Set up the display window (fullscreen or windowed)
         self.screen = self._setup_screen()
+        # Preload commonly used fonts
         self.FONT_LARGE = pygame.font.Font(None, 74)
         self.FONT_MEDIUM = pygame.font.Font(None, 50)
         self.FONT_SMALL = pygame.font.Font(None, 36)
+        # Dictionary to hold loaded and scaled images
         self.scaled_images = {}
         
 
     def _setup_screen(self):
+        # Set up the display window based on config (fullscreen or windowed)
         if self.config.FULLSCREEN_MODE:
             display_info = pygame.display.Info()
             screen_width = display_info.current_w
             screen_height = display_info.current_h
+            # If multiple displays, use the second one
             if pygame.display.get_num_displays() > 1: 
                 screen = pygame.display.set_mode((screen_width, screen_height), pygame.FULLSCREEN, display=1)
             else:
@@ -32,6 +44,7 @@ class PygameDisplay:
         return screen
 
     def _load_and_scale_image(self, name, folder, target_screen_width, target_screen_height):
+        # Load an image from disk and scale it to fit the screen
         fullname = os.path.join(folder, name)
         try:
             original_image = pygame.image.load(fullname)
@@ -45,6 +58,7 @@ class PygameDisplay:
             print(f"Warning: Image {name} has zero dimension.")
             return original_image
 
+        # Calculate scale factor to fit image within screen
         scale_w = target_screen_width / img_width
         scale_h = target_screen_height / img_height
         scale_factor = min(scale_w, scale_h)
@@ -61,6 +75,7 @@ class PygameDisplay:
         return scaled_image
 
     def load_stimulus_images(self):
+        # Load and scale all stimulus images as defined in the config
         try:
             self.scaled_images["sixth"] = self._load_and_scale_image(
                 self.config.SIXTH_FINGER_IMAGE_NAME, self.config.IMAGE_FOLDER,
@@ -78,6 +93,7 @@ class PygameDisplay:
                 self.config.SIXTH_FINGER_IMAGE_NAME_BLUE, self.config.IMAGE_FOLDER,
                 self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT
             )
+            # Load all normal finger images (red and blue variants)
             for finger_type, img_name in self.config.NORMAL_FINGER_IMAGE_MAP.items():
                 self.scaled_images[finger_type] = self._load_and_scale_image(
                     img_name, self.config.IMAGE_FOLDER,
@@ -94,10 +110,12 @@ class PygameDisplay:
             sys.exit()
 
     def _draw_text(self, surface, text, font, color, center_x, center_y, line_spacing_factor=1.2):
+        # Draw multi-line text centered at (center_x, center_y)
         lines = text.split('\n')
         total_height = 0
         line_height = font.get_linesize() * line_spacing_factor
 
+        # Calculate total height for vertical centering
         for i, line_text in enumerate(lines):
             rendered_line = font.render(line_text, True, color)
             rect = rendered_line.get_rect()
@@ -116,6 +134,7 @@ class PygameDisplay:
 
         current_y = center_y - total_height / 2
 
+        # Draw each line
         for i, line_text in enumerate(lines):
             rendered_line = font.render(line_text, True, color)
             rect = rendered_line.get_rect(centerx=center_x)
@@ -131,6 +150,8 @@ class PygameDisplay:
                 current_y += line_height
 
     def display_message_screen(self, message, duration_ms=0, wait_for_key=False, font=None, bg_color=None, text_color=None, server_response=""):
+        # Display a message (optionally multi-line, color-tagged) in the center of the screen.
+        # Optionally waits for a key press or times out after duration_ms.
         font = font if font else self.FONT_LARGE
         bg_color = bg_color if bg_color else self.config.GRAY
         text_color = text_color if text_color else self.config.BLACK
@@ -221,6 +242,7 @@ class PygameDisplay:
             pygame.time.wait(10)
 
     def display_fixation_cross(self, duration_ms):
+        # Display a white fixation cross in the center of the screen for duration_ms milliseconds
         self.screen.fill(self.config.BLACK)
         cross_size = 100
         line_thickness = 10 # Define line thickness
@@ -252,6 +274,7 @@ class PygameDisplay:
             pygame.time.wait(10)
 
     def display_image_stimulus(self, image_surface, duration_ms, crop_rect=None):
+        # Display an image (optionally cropped) centered on the screen for duration_ms milliseconds
         self.screen.fill(self.config.BLACK)
 
         if crop_rect is not None:
@@ -285,6 +308,7 @@ class PygameDisplay:
             pygame.time.wait(10)
 
     def display_control_stimulus(self, duration_ms):
+        # Display a gray circle in the center of the screen for duration_ms milliseconds
         self.screen.fill(self.config.BLACK)
         circle_radius = 50
         center_x, center_y = self.config.SCREEN_WIDTH // 2, self.config.SCREEN_HEIGHT // 2
@@ -301,6 +325,7 @@ class PygameDisplay:
             pygame.time.wait(10)
 
     def display_blank_screen(self, duration_ms, color=None):
+        # Display a blank screen (default black) for duration_ms milliseconds
         color = color if color else self.config.BLACK
         self.screen.fill(color)
         pygame.display.flip()
@@ -315,6 +340,7 @@ class PygameDisplay:
             pygame.time.wait(10)
 
     def display_loading_screen(self, message="Loading...", font=None, bg_color=None, text_color=None):
+        # Display a loading message (centered)
         font = font if font else self.FONT_MEDIUM
         bg_color = bg_color if bg_color else self.config.BLACK
         text_color = text_color if text_color else self.config.WHITE
@@ -323,6 +349,7 @@ class PygameDisplay:
         pygame.display.flip()
     
     def display_erd_feedback_bar(self, erd_value, duration_ms=1500):
+        # Display a feedback bar representing ERD value (0-100%)
         self.screen.fill(self.config.BLACK)
 
         bar_width = int(self.config.SCREEN_WIDTH * 0.6)
@@ -523,5 +550,6 @@ class PygameDisplay:
             # Small delay to reduce CPU usage
             pygame.time.wait(10)
     def quit_pygame_and_exit(self):
+        # Cleanly quit pygame and exit the program
         pygame.quit()
         sys.exit()

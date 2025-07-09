@@ -3,8 +3,13 @@ import csv
 import time
 from typing import Optional
 
+# --- logger.py: Data and Event Logging Utilities ---
 
 class TrialDataLogger:
+    """
+    Collects and saves structured trial-by-trial data to CSV files.
+    Configurable fieldnames and filenames. Used for experiment data logging.
+    """
     def __init__(self, config):
         self.config = config
         self.all_trial_data = []

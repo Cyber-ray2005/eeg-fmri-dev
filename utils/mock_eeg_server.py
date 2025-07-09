@@ -7,6 +7,7 @@ import random
 import uuid # For GUID
 import threading
 
+# --- mock_eeg_server.py: Mock EEG Data Server for Development ---
 
 # --- Configuration for the Mock Server ---
 MOCK_SERVER_IP = "127.0.0.1"  # Use localhost for testing on the same machine
@@ -31,7 +32,9 @@ MARKER_INTERVAL_SECONDS = 3    # Desired interval for sending markers
 dummy_guid_ints = [0x01020304, 0x05060708, 0x090A0B0C, 0x0D0E0F00] # Example: simpler positive values
 
 def generate_mock_eeg_data(num_channels, num_samples, amplitude=100, noise_level=5):
-    """Generates synthetic EEG-like data with some sinusoidal components and noise."""
+    """
+    Generates synthetic EEG-like data with some sinusoidal components and noise.
+    """
     time_vec = np.linspace(0, num_samples / SAMPLING_FREQUENCY, num_samples, endpoint=False)
     data = np.zeros((num_channels, num_samples))
 

@@ -5,12 +5,18 @@ from PyQt5 import QtWidgets
 import pyqtgraph as pg
 import sys
 
+# --- EEGVisualizer: Real-time EEG Data Visualization Tool ---
 class EEGVisualizer(QtWidgets.QMainWindow):
+    """
+    A PyQt5/pyqtgraph-based GUI for real-time visualization of EEG data and event markers streamed over TCP.
+    Connects to a TCP server (e.g., collect_data.py) and displays multi-channel EEG traces with live marker annotations.
+    """
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Live EEG Visualizer")
         self.resize(1200, 600)
 
+        # Set up the main plotting widget
         self.plot_widget = pg.GraphicsLayoutWidget()
         self.setCentralWidget(self.plot_widget)
 
@@ -21,6 +27,7 @@ class EEGVisualizer(QtWidgets.QMainWindow):
         # For marker tracking
         self.markers = []  # list of dicts: { 'x': int, 'lines': [...], 'label': TextItem }
 
+        # Create a plot for each EEG channel
         for i in range(self.num_channels):
             p = self.plot_widget.addPlot(row=i, col=0)
             p.setYRange(-1000, 1000)
@@ -30,6 +37,7 @@ class EEGVisualizer(QtWidgets.QMainWindow):
             self.plots.append(p)
             self.curves.append(curve)
         
+        # Buffer to hold recent EEG data for scrolling display
         self.buffer = np.zeros((self.num_channels, 10000))  # 1 second buffer at 500 Hz
         # Set time labels on the x-axis (assuming 500 Hz)
         tick_spacing = 500  # 500 samples = 1 second
@@ -38,17 +46,21 @@ class EEGVisualizer(QtWidgets.QMainWindow):
         for plot in self.plots:
             plot.getAxis('bottom').setTicks([time_ticks])
 
-
-
+        # Timer for periodic plot updates
         self.timer = pg.QtCore.QTimer()
         self.timer.timeout.connect(self.update_plot)
         self.timer.start(20)  # Update every 20 ms
 
+        # Set up TCP socket connection to EEG data server
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect(("127.0.0.1", 50000))
         self.socket.setblocking(False)
 
     def update_plot(self):
+        """
+        Called periodically by the timer. Receives new EEG data, updates the buffer and plots,
+        and handles marker display and cleanup.
+        """
         try:
             header_size = 24
             header = self.socket.recv(header_size, socket.MSG_PEEK)
@@ -83,8 +95,6 @@ class EEGVisualizer(QtWidgets.QMainWindow):
             for i in range(self.num_channels):
                 self.curves[i].setData(self.buffer[i])
             
-            
-
             # Shift marker positions and update their graphics
             for marker in self.markers:
                 marker['x'] -= num_samples
@@ -144,6 +154,7 @@ class EEGVisualizer(QtWidgets.QMainWindow):
             pass
 
 if __name__ == "__main__":
+    # Entry point for running the EEG visualizer
     app = QtWidgets.QApplication(sys.argv)
     win = EEGVisualizer()
     win.show()

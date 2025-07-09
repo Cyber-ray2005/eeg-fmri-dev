@@ -2,12 +2,18 @@ import time
 import numpy as np
 import mne
 
-from livestream_receiver import Marker
+from utils.livestream_receiver import Marker
 
+# --- emulator.py: EEG Data Emulation Utility ---
 
 data_dir = "./data/rawdata/mit/"
 
 class Emulator:
+    """
+    Simulates a live EEG data stream by reading from pre-recorded BrainVision files.
+    Provides data chunks and event markers in the same format as a real EEG server.
+    Used for development and testing without hardware.
+    """
     def __init__(self, fileName="MIT33"):
         self.vhdr_file = f"{data_dir}{fileName}.vhdr"
         self.eeg_file = f"{data_dir}{fileName}.eeg"

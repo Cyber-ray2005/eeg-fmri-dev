@@ -7,3 +7,5 @@ yonas.txt
 logs/
 exercise_logs/
 .env
+!analysis.ipynb
+*.html

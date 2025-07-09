@@ -1,6 +1,12 @@
 import random
 
+# --- trial_generator.py: Trial List Generation Utility ---
 class TrialGenerator:
+    """
+    Generates randomized and balanced trial lists for each experiment block,
+    enforcing constraints such as maximum consecutive trials of the same category.
+    Ensures fair distribution of all trial types (e.g., sixth finger, normal fingers, blank).
+    """
     def __init__(self, config):
         self.config = config
 

@@ -8,19 +8,22 @@ from scipy.signal import butter, filtfilt
 import mne
 from colorama import Fore, Style
 
-from livestream_receiver import LivestreamReceiver, Marker
-from emulator import Emulator
+from utils.livestream_receiver import LivestreamReceiver, Marker
+from utils.emulator import Emulator
 
-from ERDCalculator import ERDCalculator
+from ERDCalculator.ERDCalculator import ERDCalculator
 
 
 # --- Configuration Class ---
 class EEGConfig:
+    """
+    Holds all configuration parameters for EEG data collection, processing, and broadcasting.
+    """
     def __init__(self):
         # EEG Connection Parameters
         self.EEG_SERVER_IP = "169.254.1.147"
         self.EEG_SERVER_PORT = 51244
-        self.COLLECT_FROM_EMULATOR = False
+        self.COLLECT_FROM_EMULATOR = False  # If True, use Emulator instead of real EEG server
 
         # Signal Processing Parameters
         self.FOCUS_CHANNELS = [7, 39, 42, 11] # C3, C1, CP3, CP1 (0-indexed)
@@ -44,6 +47,10 @@ class EEGConfig:
 
 # --- EEG Receiver Class ---
 class EEGReceiver:
+    """
+    Handles connection to the EEG data source (real server or emulator),
+    and provides methods to retrieve data and disconnect.
+    """
     def __init__(self, config: EEGConfig):
         self.config = config
         self.receiver = None
@@ -52,6 +59,10 @@ class EEGReceiver:
         self.channel_count = None
 
     def initialize(self):
+        """
+        Initializes the connection to the EEG server or emulator.
+        Returns True if successful, False otherwise.
+        """
         if self.config.COLLECT_FROM_EMULATOR:
             self.receiver = Emulator()
         else:
@@ -79,27 +90,42 @@ class EEGReceiver:
             return False
 
     def get_data(self):
+        """
+        Retrieves the next chunk of EEG data and any markers from the receiver.
+        """
         return self.receiver.get_data()
 
     def disconnect(self):
+        """
+        Disconnects from the EEG data source if possible.
+        """
         if hasattr(self.receiver, 'disconnect'):
             self.receiver.disconnect()
 
 # --- Data Processor Class ---
 class DataProcessor:
+    """
+    Handles signal processing, filtering, and ERD calculation for EEG epochs.
+    """
     def __init__(self, config: EEGConfig, sampling_frequency, channel_count):
         self.config = config
         self.sampling_frequency = sampling_frequency
         self.channel_count = channel_count
+        # Design bandpass filter
         self.b, self.a = butter(self.config.FILTER_ORDER,
                                 [self.config.LOW_CUT, self.config.HIGH_CUT],
                                 btype='band', fs=self.sampling_frequency)
         
+        # Calculate number of samples before and after marker for epoching
         self.samples_before_marker = int(self.config.SECONDS_BEFORE_MARKER * self.sampling_frequency)
         self.samples_after_marker = int(self.config.SECONDS_AFTER_MARKER * self.sampling_frequency)
         self.epoch_total_samples = self.samples_before_marker + 1 + self.samples_after_marker
 
     def calculate_erd(self, epoch_data):
+        """
+        Calculates ERD% for a given epoch of EEG data.
+        Returns the average ERD% across focus channels, or 0 if invalid.
+        """
         if epoch_data.shape != (self.channel_count, self.epoch_total_samples) or np.isnan(epoch_data).all() or np.all(np.isnan(epoch_data), axis=1).any():
             print(f"⚠️ Epoch data invalid for ERD calculation. Shape: {epoch_data.shape}, NaNs: {np.isnan(epoch_data).all()}")
             return None
@@ -136,12 +162,18 @@ class DataProcessor:
 
 # --- ERD Broadcaster Class ---
 class ERDBroadcaster:
+    """
+    Sets up a TCP server to broadcast ERD results to a client (e.g., for real-time feedback).
+    """
     def __init__(self, config: EEGConfig):
         self.config = config
         self.server_socket = None
         self.client_connection = None
 
     def initialize(self):
+        """
+        Initializes the TCP server for broadcasting ERD data.
+        """
         if not self.config.ENABLE_BROADCASTING:
             print("Broadcasting is disabled.")
             return
@@ -158,6 +190,9 @@ class ERDBroadcaster:
             self.server_socket = None
 
     def accept_client(self):
+        """
+        Accepts a client connection if one is waiting.
+        """
         if self.server_socket and self.client_connection is None:
             try:
                 conn, addr = self.server_socket.accept()
@@ -169,6 +204,9 @@ class ERDBroadcaster:
                 print(f"Error accepting client connection: {e}")
 
     def broadcast_data(self, data):
+        """
+        Sends ERD data to the connected client as a JSON string.
+        """
         if self.client_connection:
             try:
                 message = json.dumps(data) + "\n"
@@ -185,6 +223,9 @@ class ERDBroadcaster:
             pass
 
     def close(self):
+        """
+        Closes the client and server sockets.
+        """
         if self.client_connection:
             print("Closing client broadcasting connection.")
             self.client_connection.close()
@@ -196,10 +237,17 @@ class ERDBroadcaster:
 
 # --- Data Saver Class ---
 class DataSaver:
+    """
+    Handles saving EEG data and markers to disk, and creating MNE Raw objects for further analysis.
+    """
     def __init__(self, config: EEGConfig):
         self.config = config
 
     def save_eeg_data(self, all_eeg_data, filename="./data/collected_eeg_data.npy"):
+        """
+        Saves all collected EEG data to a .npy file.
+        Returns the concatenated EEG data array.
+        """
         if all_eeg_data:
             final_eeg_data = np.concatenate(all_eeg_data, axis=1)
             print(f"\nTotal collected EEG data shape: {final_eeg_data.shape}")
@@ -211,6 +259,9 @@ class DataSaver:
             return None
 
     def save_markers(self, all_markers, filename="./data/collected_markers.csv"):
+        """
+        Saves all collected markers to a CSV file.
+        """
         if all_markers:
             markers_data = []
             for marker in all_markers:
@@ -226,6 +277,9 @@ class DataSaver:
             print("No markers were collected to save.")
 
     def create_mne_raw(self, final_eeg_data, sampling_frequency, channel_names):
+        """
+        Creates an MNE Raw object from the EEG data for further analysis/visualization.
+        """
         if final_eeg_data is not None and sampling_frequency and channel_names:
             ch_types = ['eeg'] * len(channel_names)
             info = mne.create_info(ch_names=channel_names, sfreq=sampling_frequency, ch_types=ch_types)
@@ -240,6 +294,9 @@ class DataSaver:
 
 # --- Main EEG Data Collector Class ---
 class EEGDataCollector:
+    """
+    Orchestrates the entire EEG data collection, processing, and broadcasting pipeline.
+    """
     def __init__(self):
         self.config = EEGConfig()
         self.receiver = EEGReceiver(self.config)
@@ -255,6 +312,10 @@ class EEGDataCollector:
         self.pending_markers_to_process = deque()
 
     def run(self):
+        """
+        Main loop for data collection, processing, and broadcasting.
+        Handles buffer management, marker registration, and live ERD calculation.
+        """
         if not self.receiver.initialize():
             return # Exit if connection fails
 
@@ -333,6 +394,10 @@ class EEGDataCollector:
             self._cleanup()
 
     def _process_pending_markers(self, buffer_samples):
+        """
+        Checks if enough data is available in the buffer for each pending marker,
+        extracts the corresponding epoch, and performs live ERD calculation and broadcasting.
+        """
         processed_markers_this_iteration = []
         for i in range(len(self.pending_markers_to_process)):
             pending_marker = self.pending_markers_to_process[i]
@@ -395,6 +460,9 @@ class EEGDataCollector:
 
 
     def _cleanup(self):
+        """
+        Disconnects from EEG source, closes broadcaster, saves data, and creates MNE Raw object.
+        """
         print("\nDisconnecting and saving data...")
         self.receiver.disconnect()
         self.broadcaster.close()
@@ -405,5 +473,6 @@ class EEGDataCollector:
         print("Cleanup complete.")
 
 if __name__ == "__main__":
+    # Entry point for running the EEG data collection pipeline
     collector = EEGDataCollector()
     collector.run()
