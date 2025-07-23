@@ -47,7 +47,7 @@ class ExperimentConfig:
         # Initial calibration period at experiment start
         self.INITIAL_CALIBRATION_DURATION_MS = 3000
         # Duration of fixation cross before each trial stimulus
-        self.FIXATION_IN_TRIAL_DURATION_MS = 2500
+        self.FIXATION_IN_TRIAL_DURATION_MS = 3000
         # Duration that each stimulus image is displayed
         self.IMAGE_DISPLAY_DURATION_MS = 3000
         # Short break between individual trials
