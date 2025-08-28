@@ -54,7 +54,7 @@ class ExperimentConfig:
         # Screen dimensions for the experiment window
         self.SCREEN_WIDTH = 1000
         self.SCREEN_HEIGHT = 700
-        self.FULLSCREEN_MODE = False  # Set to True for fullscreen mode
+        self.FULLSCREEN_MODE = True  # Set to True for fullscreen mode
 
         # === COLOR DEFINITIONS ===
         # RGB color tuples for various UI elements

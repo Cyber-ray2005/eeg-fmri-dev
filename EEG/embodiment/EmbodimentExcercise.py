@@ -22,7 +22,7 @@ class EmbodimentExercise:
         
         # 1. Display initial instructions
         self.display.display_message_screen(
-            "Use your supernumerary robotic thumb to write each of the following characters on sand.\n\n Press any key to continue.",
+            "Use your supernumerary robotic thumb to write\neach of the following characters on sand.\n\nPress any key to continue.",
             wait_for_key=True,
             font=self.display.FONT_LARGE
         )
