@@ -169,7 +169,7 @@ class ExperimentConfig:
                 "Wall", "Gate", "Door", "Vent", "Roof", "Tile", "Wire", "Plug", "Jack", "Knob",
                 "Soap", "Tow", "Comb", "Sink", "Hose", "Tube", "Vent", "Boot", "Shoe", "Sock",
                 "Vest", "Coat", "Belt", "Scar", "Hat", "Glow", "Book", "Pen", "Ink", "Note",
-                "Desk", "Page", "Clip", "File", "Card", "Ruler", "Math", "Test", "Quiz", "Plan",
+                "Desk", "Page", "Clip", "File", "Card", "Rule", "Math", "Test", "Quiz", "Plan",
                 "Grid", "Code", "List", "Form", "Name", "Word", "Text", "Line", "Data", "Fact",
                 "Idea", "Goal", "Time", "Work", "Play", "Game", "Move", "Step", "Jump", "Walk"]
         # Number of characters to write in writing task
@@ -191,7 +191,7 @@ class Experiment:
         self.serial_comm = SerialCommunication(self.config.SERIAL_PORT, self.config.BAUD_RATE)
         self.trial_generator = TrialGenerator(self.config)
         # Initialize embodiment exercise (pre-experiment calibration/training)
-        self.emnbodiment_exercise = EmbodimentExercise(self.config, enable_logging=True)
+        self.embodiment_exercise = EmbodimentExercise(self.config, enable_logging=True)
         self.data_logger = TrialDataLogger({
             "data_folder": "data",
             "filename_template": "{participant_id}_session_log_{timestamp}.csv",
@@ -469,7 +469,7 @@ class Experiment:
         self._show_intro_screen()
         # === EMBODIMENT EXERCISE PHASE ===
         # Run pre-experiment embodiment exercise to establish sixth finger representation
-        self.emnbodiment_exercise.run()
+        self.embodiment_exercise.run()
 
         for block_num in range(1, self.config.NUM_BLOCKS + 1):
             self._run_block(block_num)
