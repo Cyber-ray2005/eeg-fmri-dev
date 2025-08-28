@@ -8,3 +8,5 @@ seaborn
 colorama
 websocket-client
 pygame
+pyserial
+python-dotenv

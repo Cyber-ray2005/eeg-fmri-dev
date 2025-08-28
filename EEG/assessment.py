@@ -11,10 +11,37 @@ from utils.trial_generator import TrialGenerator              # Generates random
 from utils.pygame_display import PygameDisplay               # Handles all visual display operations
 from utils.logger import TrialDataLogger                     # Logs experimental data to CSV files
 from utils.serial_communication import SerialCommunication   # Sends EEG triggers via serial port
-import winsound                                              # For audio feedback (beep sounds)
 from utils.logger import TextLogger                          # Logs text-based experimental events
-from embodiment.EmbodimentExcercise import EmbodimentExercise # Runs pre-experiment embodiment exercise
 from dotenv import load_dotenv                               # Loads environment variables from .env file
+import platform                                              # For cross-platform compatibility
+import subprocess                                            # For system audio commands
+
+
+def cross_platform_beep(frequency=1000, duration_ms=100):
+    """
+    Cross-platform beep function.
+    
+    Args:
+        frequency: Frequency in Hz (default: 1000)
+        duration_ms: Duration in milliseconds (default: 100)
+    """
+    try:
+        if platform.system() == "Windows":
+            import winsound
+            winsound.Beep(frequency, duration_ms)
+        elif platform.system() == "Darwin":  # macOS
+            # Use system beep on macOS
+            subprocess.run(["afplay", "/System/Library/Sounds/Ping.aiff"], check=False)
+        elif platform.system() == "Linux":
+            # Use system beep on Linux
+            subprocess.run(["paplay", "/usr/share/sounds/alsa/Front_Right.wav"], check=False)
+        else:
+            # Fallback: print to console
+            print(f"BEEP! ({frequency}Hz, {duration_ms}ms)")
+    except Exception as e:
+        # Fallback if audio doesn't work
+        print(f"BEEP! ({frequency}Hz, {duration_ms}ms) - Audio error: {e}")
+
 
 # --- Configuration Class ---
 class ExperimentConfig:
@@ -212,9 +239,6 @@ class Experiment:
         # Initialize display system for presenting stimuli and instructions
         self.display = PygameDisplay(self.config)
         
-        # Initialize embodiment exercise (pre-experiment calibration/training)
-        self.emnbodiment_exercise = EmbodimentExercise(self.config)
-        
         # Initialize serial communication for EEG trigger transmission
         self.serial_comm = SerialCommunication(self.config.SERIAL_PORT, self.config.BAUD_RATE)
         
@@ -277,7 +301,7 @@ class Experiment:
         self.display.display_fixation_cross(fixation_duration)
         
         # Play beep sound to indicate trial start
-        winsound.Beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
+        cross_platform_beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
         
         # Get the appropriate trigger code for blue (motor execution) version
         stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition + "_blue")
@@ -327,7 +351,7 @@ class Experiment:
         self.display.display_fixation_cross(fixation_duration)
 
         # Play audio cue to indicate trial start
-        winsound.Beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
+        cross_platform_beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
 
         # === STIMULUS PHASE ===
         # Get the appropriate EEG trigger code for this condition
@@ -395,10 +419,9 @@ class Experiment:
         
         The experiment consists of:
         1. Initialization and setup
-        2. Embodiment exercise (pre-experiment calibration)
-        3. Motor execution trials (actual finger movements)
-        4. Motor imagery trials (imagined finger movements) across multiple blocks
-        5. Data saving and cleanup
+        2. Motor execution trials (actual finger movements)
+        3. Motor imagery trials (imagined finger movements) across multiple blocks
+        4. Data saving and cleanup
         """
         # === INITIALIZATION PHASE ===
         # Initialize hardware connections and load stimulus images
@@ -414,10 +437,6 @@ class Experiment:
         else:
             intro_text += f"The experiment will begin in {self.config.INTRO_DURATION_MS/1000:.0f} seconds."
             self.display.display_message_screen(intro_text, duration_ms=self.config.INTRO_DURATION_MS, font=self.display.FONT_LARGE)
-        
-        # === EMBODIMENT EXERCISE PHASE ===
-        # Run pre-experiment embodiment exercise to establish sixth finger representation
-        self.emnbodiment_exercise.run()
         
         # Mark experiment start in EEG data
         self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_START)
