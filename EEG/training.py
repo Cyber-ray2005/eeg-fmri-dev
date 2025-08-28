@@ -14,7 +14,36 @@ from utils.pygame_display import PygameDisplay
 from utils.logger import TrialDataLogger
 from utils.serial_communication import SerialCommunication
 from utils.tcp_client import TCPClient # --- NEW: Import the TCP client class ---
-import winsound
+from embodiment.EmbodimentExcercise import EmbodimentExercise # Runs pre-experiment embodiment exercise
+import platform
+import subprocess
+import sys
+
+
+def cross_platform_beep(frequency=1000, duration_ms=100):
+    """
+    Cross-platform beep function.
+    
+    Args:
+        frequency: Frequency in Hz (default: 1000)
+        duration_ms: Duration in milliseconds (default: 100)
+    """
+    try:
+        if platform.system() == "Windows":
+            import winsound
+            winsound.Beep(frequency, duration_ms)
+        elif platform.system() == "Darwin":  # macOS
+            # Use system beep on macOS
+            subprocess.run(["afplay", "/System/Library/Sounds/Ping.aiff"], check=False)
+        elif platform.system() == "Linux":
+            # Use system beep on Linux
+            subprocess.run(["paplay", "/usr/share/sounds/alsa/Front_Right.wav"], check=False)
+        else:
+            # Fallback: print to console
+            print(f"BEEP! ({frequency}Hz, {duration_ms}ms)")
+    except Exception as e:
+        # Fallback if audio doesn't work
+        print(f"BEEP! ({frequency}Hz, {duration_ms}ms) - Audio error: {e}")
 
 
 # --- Experiment Parameters ---
@@ -133,6 +162,23 @@ class ExperimentConfig:
             "pinky_blue": self.TRIGGER_PINKY_ONSET_BLUE,
         }
         
+        # List of words that could be used for writing tasks (for embodiment exercise)
+        self.CHARACTERS_TO_WRITE = ["Table",
+                                   "Chair",
+                                   "Door",
+                                   "Window",
+                                   "Book",
+                                   "Pencil",
+                                   "Street",
+                                   "Cloud",
+                                   "Water",
+                                   "Tree",
+                                   "Stone",
+                                   "Box",
+                                   "Glass"]
+        # Number of characters to write in writing task
+        self.NUMBER_OF_CHARACTERS_TO_WRITE = 5
+        
         self.TCP_HOST =  '127.0.0.1'
         self.TCP_PORT = 50000  # The port used by the server
         
@@ -148,6 +194,8 @@ class Experiment:
         self.display = PygameDisplay(self.config)
         self.serial_comm = SerialCommunication(self.config.SERIAL_PORT, self.config.BAUD_RATE)
         self.trial_generator = TrialGenerator(self.config)
+        # Initialize embodiment exercise (pre-experiment calibration/training)
+        self.emnbodiment_exercise = EmbodimentExercise(self.config)
         self.data_logger = TrialDataLogger({
             "data_folder": "data",
             "filename_template": "{participant_id}_session_log_{timestamp}.csv",
@@ -181,7 +229,7 @@ class Experiment:
         self.display.display_fixation_cross(random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500]))
 
         # Play beep to indicate stimulus onset
-        winsound.Beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
+        cross_platform_beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
         stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition)
 
         if trial_condition == self.config.BLANK_CONDITION_NAME:
@@ -226,7 +274,7 @@ class Experiment:
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET)
         self.display.display_fixation_cross(random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500]))
         
-        winsound.Beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
+        cross_platform_beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
         
         stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition+"_blue")
         
@@ -423,6 +471,9 @@ class Experiment:
         """
         self._initialize_hardware_and_display()
         self._show_intro_screen()
+        # === EMBODIMENT EXERCISE PHASE ===
+        # Run pre-experiment embodiment exercise to establish sixth finger representation
+        self.emnbodiment_exercise.run()
 
         for block_num in range(1, self.config.NUM_BLOCKS + 1):
             self._run_block(block_num)
