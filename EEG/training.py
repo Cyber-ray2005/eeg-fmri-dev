@@ -163,19 +163,16 @@ class ExperimentConfig:
         }
         
         # List of words that could be used for writing tasks (for embodiment exercise)
-        self.CHARACTERS_TO_WRITE = ["Table",
-                                   "Chair",
-                                   "Door",
-                                   "Window",
-                                   "Book",
-                                   "Pencil",
-                                   "Street",
-                                   "Cloud",
-                                   "Water",
-                                   "Tree",
-                                   "Stone",
-                                   "Box",
-                                   "Glass"]
+        self.CHARACTERS_TO_WRITE = ["Tab", "Door", "Book", "Tree", "Box", "Chat", "Ball", "Bird", "Fish", "Star",
+                "Rain", "Snow", "Wind", "Fire", "Rock", "Sand", "Lake", "Road", "Path", "Leaf",
+                "Bark", "Ring", "King", "Cape", "Card", "Coin", "Note", "Fork", "Spot", "Dish",
+                "Cup", "Mug", "Lamp", "Bulb", "Rope", "Nail", "Tape", "Bell", "Drum", "Flag",
+                "Wall", "Gate", "Door", "Vent", "Roof", "Tile", "Wire", "Plug", "Jack", "Knob",
+                "Soap", "Tow", "Comb", "Sink", "Hose", "Tube", "Vent", "Boot", "Shoe", "Sock",
+                "Vest", "Coat", "Belt", "Scar", "Hat", "Glow", "Book", "Pen", "Ink", "Note",
+                "Desk", "Page", "Clip", "File", "Card", "Ruler", "Math", "Test", "Quiz", "Plan",
+                "Grid", "Code", "List", "Form", "Name", "Word", "Text", "Line", "Data", "Fact",
+                "Idea", "Goal", "Time", "Work", "Play", "Game", "Move", "Step", "Jump", "Walk"]
         # Number of characters to write in writing task
         self.NUMBER_OF_CHARACTERS_TO_WRITE = 5
         
