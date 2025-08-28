@@ -182,24 +182,6 @@ class ExperimentConfig:
         # Triggers for yes/no questionnaire responses
         self.YES_TRIGGER = 11
         self.NO_TRIGGER = 12
-        
-        # === PLACEHOLDER FOR FUTURE FEATURES ===
-        # List of words that could be used for writing tasks (currently unused)
-        self.CHARACTERS_TO_WRITE=["Table",
-        "Chair",
-        "Door",
-        "Window",
-        "Book",
-        "Pencil",
-        "Street",
-        "Cloud",
-        "Water",
-        "Tree",
-        "Stone",
-        "Box",
-        "Glass"]
-        # Number of characters to write in writing task (currently unused)
-        self.NUMBER_OF_CHARACTERS_TO_WRITE = 5
 
         # === TRIGGER MAPPING ===
         # Dictionary mapping trial condition names to their corresponding EEG trigger codes
