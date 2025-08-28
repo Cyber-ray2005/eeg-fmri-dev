@@ -11,13 +11,51 @@ import json
 
 from utils.trial_generator import TrialGenerator
 from utils.pygame_display import PygameDisplay
-from utils.logger import TrialDataLogger
-from utils.serial_communication import SerialCommunication
 from utils.tcp_client import TCPClient # --- NEW: Import the TCP client class ---
-from embodiment.EmbodimentExcercise import EmbodimentExercise # Runs pre-experiment embodiment exercise
+from embodiment.EmbodimentExcercise import EmbodimentExercise
 import platform
 import subprocess
 import sys
+
+
+class MockSerialCommunication:
+    """
+    Mock serial communication class for non-EEG training.
+    Provides the same interface as SerialCommunication but doesn't send actual triggers.
+    """
+    def __init__(self, port, baud_rate):
+        self.port = port
+        self.baud_rate = baud_rate
+        print(f"Mock Serial: Initialized for port {port} (no actual EEG recording)")
+    
+    def initialize(self):
+        print("Mock Serial: Initialized successfully (no EEG triggers will be sent)")
+    
+    def send_trigger(self, trigger_code):
+        print(f"Mock Serial: Would send trigger {trigger_code} (EEG recording disabled)")
+    
+    def close(self):
+        print("Mock Serial: Closed (no actual connection to close)")
+
+
+class MockDataLogger:
+    """
+    Mock data logger for non-EEG training.
+    Provides the same interface as TrialDataLogger but doesn't create actual files.
+    """
+    def __init__(self, config):
+        self.config = config
+        print("Mock Data Logger: Initialized (no files will be created)")
+    
+    def add_trial_data(self, trial_data):
+        print(f"Mock Data Logger: Would log trial data - Participant: {trial_data.get('participant_id')}, "
+              f"Block: {trial_data.get('block')}, Trial: {trial_data.get('global_trial_num')}, "
+              f"Condition: {trial_data.get('condition')}")
+    
+    def save_data(self, participant_id):
+        print(f"Mock Data Logger: Would save data for participant {participant_id} (no file created)")
+        return None  # Return None to indicate no file was saved
+
 
 
 def cross_platform_beep(frequency=1000, duration_ms=100):
@@ -115,13 +153,13 @@ class ExperimentConfig:
         self.CATEGORY_NORMAL = "normal_finger_cat"
         self.CATEGORY_BLANK = "blank_cat"
 
-        # Serial Port Configuration and Triggers
-        self.SERIAL_PORT = 'COM4'
-        self.BAUD_RATE = 9600
+        # Serial Port Configuration and Triggers (Mock only - no actual EEG recording)
+        self.SERIAL_PORT = 'COM4'  # Not used in non-EEG version
+        self.BAUD_RATE = 9600      # Not used in non-EEG version
         self.REST_FINGER_IMAGE_NAME = "Rest.png"
         
 
-        # Define trigger values (bytes)
+        # Define trigger values (bytes) - For reference only, not sent in non-EEG version
         self.TRIGGER_BLOCK_START = 14
         self.TRIGGER_BLOCK_END = 13
         self.TRIGGER_FIXATION_ONSET = 10
@@ -189,13 +227,13 @@ class Experiment:
     def __init__(self):
         self.config = ExperimentConfig()
         self.display = PygameDisplay(self.config)
-        self.serial_comm = SerialCommunication(self.config.SERIAL_PORT, self.config.BAUD_RATE)
+        self.serial_comm = MockSerialCommunication(self.config.SERIAL_PORT, self.config.BAUD_RATE)
         self.trial_generator = TrialGenerator(self.config)
         # Initialize embodiment exercise (pre-experiment calibration/training)
-        self.emnbodiment_exercise = EmbodimentExercise(self.config)
-        self.data_logger = TrialDataLogger({
-            "data_folder": "data",
-            "filename_template": "{participant_id}_session_log_{timestamp}.csv",
+        self.emnbodiment_exercise = EmbodimentExercise(self.config, enable_logging=False)
+        self.data_logger = MockDataLogger({
+            "data_folder": "data_non_eeg",
+            "filename_template": "{participant_id}_non_eeg_session_log_{timestamp}.csv",
             "fieldnames": ["participant_id", "block", "trial_num", "condition", "response_time", "timestamp", "server_feedback"]
         })
         self.participant_id = "P" + str(random.randint(100, 999)) # Random participant ID for session
@@ -302,7 +340,7 @@ class Experiment:
         """
         Displays the experiment introduction screen, waiting for key press or timeout.
         """
-        intro_text = "Welcome to the Motor Imagery Experiment!\n\nPlease focus on the stimulus presented.\n\n"
+        intro_text = "Welcome to the Motor Imagery Experiment!\n(Non-EEG Training Version)\n\nPlease focus on the stimulus presented.\n\n"
         if self.config.INTRO_WAIT_KEY_PRESS:
             intro_text += "Press any key to begin."
             self.display.display_message_screen(intro_text, wait_for_key=True, font=self.display.FONT_LARGE)
@@ -448,7 +486,8 @@ class Experiment:
         if saved_file:
             self.display.display_message_screen(f"Data saved to:\n{saved_file}", duration_ms=4000, font=self.display.FONT_SMALL)
         else:
-            self.display.display_message_screen("Error: Could not save data!", duration_ms=3000, font=self.display.FONT_SMALL, bg_color=self.config.RED)
+            # For non-EEG version, no file is saved (this is expected)
+            self.display.display_message_screen("Training completed!\n(No data files created - Non-EEG version)", duration_ms=3000, font=self.display.FONT_SMALL)
 
         self._close_all_connections()
         self.display.quit_pygame_and_exit()

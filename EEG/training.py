@@ -192,7 +192,7 @@ class Experiment:
         self.serial_comm = SerialCommunication(self.config.SERIAL_PORT, self.config.BAUD_RATE)
         self.trial_generator = TrialGenerator(self.config)
         # Initialize embodiment exercise (pre-experiment calibration/training)
-        self.emnbodiment_exercise = EmbodimentExercise(self.config)
+        self.emnbodiment_exercise = EmbodimentExercise(self.config, enable_logging=True)
         self.data_logger = TrialDataLogger({
             "data_folder": "data",
             "filename_template": "{participant_id}_session_log_{timestamp}.csv",
