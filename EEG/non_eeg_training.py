@@ -358,41 +358,33 @@ class Experiment:
 
             # Motor imagery phase
             self.display.display_message_screen("Motor Imagery Trials", duration_ms=2000, font=self.display.FONT_LARGE)
-            instruction = " In the next slides , you will see a hand illustration \n with one of the fingers encircled in #RED:RED#. \n\n Imagine, kinesthetically, flexing and extending the encircled finger. \n Please try to avoid any movement throughout the exercise. \n\n Press any key to continue."
-            self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
+            instruction = "In the next slides, you will see a hand illustration\nwith one of the fingers encircled in #RED:RED#.\n\nImagine, kinesthetically, flexing and extending the encircled finger.\nPlease try to avoid any movement throughout the exercise.\n\nPress any key to continue."
+            self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_MEDIUM)
 
             for trial_index, condition in enumerate(trial_conditions, 1):
                 self._check_exit_keys()
                 global_trial_num = (block_num - 1) * self.config.TRIALS_PER_BLOCK + trial_index
                 presented_condition = self.run_trial(global_trial_num, condition)
-                self._handle_trial_feedback(block_num, trial_index, global_trial_num, presented_condition)
+                
+                # Log trial data (no feedback breaks for natural flow)
+                self.data_logger.add_trial_data({
+                    "participant_id": self.participant_id,
+                    "block": block_num,
+                    "trial_in_block": trial_index,
+                    "global_trial_num": global_trial_num,
+                    "condition": presented_condition,
+                    "category": self.trial_generator.get_condition_category(presented_condition),
+                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+                })
+                
+                print(f"Trial {global_trial_num} completed: {presented_condition} (Non-EEG training)")
+                # No artificial breaks - let trials flow naturally
 
         self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_END)
         self._show_block_break_screen(block_num)
 
-    def _handle_trial_feedback(self, block_num, trial_in_block, global_trial_num, condition):
-        """
-        Handles feedback after each trial: logs data and manages breaks (no ERD feedback for non-EEG training).
-        """
-        # Log trial data (no ERD feedback for non-EEG training)
-        self.data_logger.add_trial_data({
-            "participant_id": self.participant_id,
-            "block": block_num,
-            "trial_in_block": trial_in_block,
-            "global_trial_num": global_trial_num,
-            "condition": condition,
-            "category": self.trial_generator.get_condition_category(condition),
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-        })
-
-        # No ERD feedback display in non-EEG training
-        print(f"Trial {global_trial_num} completed: {condition} (Non-EEG training - no feedback)")
-        
-        self.serial_comm.send_trigger(self.config.TRIGGER_SHORT_BREAK_ONSET)
-        self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
-
-    # ERD-related methods removed for non-EEG training
-    # No TCP server feedback or ERD processing needed
+    # All ERD-related methods removed for non-EEG training
+    # Trial feedback is now handled inline within the trial loop
 
     def _check_exit_keys(self):
         """
