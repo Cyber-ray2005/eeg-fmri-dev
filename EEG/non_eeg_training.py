@@ -1,16 +1,11 @@
-import threading # --- NEW: Import threading for background data reception ---
-import queue # --- NEW: Import queue for thread-safe data passing ---
-
 import pygame
 import random
 import time
 import sys
-import queue
 import json
 
 from utils.trial_generator import TrialGenerator
 from utils.pygame_display import PygameDisplay
-from utils.tcp_client import TCPClient # --- NEW: Import the TCP client class ---
 from embodiment.EmbodimentExcercise import EmbodimentExercise
 import platform
 import subprocess
@@ -86,8 +81,8 @@ def cross_platform_beep(frequency=1000, duration_ms=100):
 # --- Experiment Parameters ---
 class ExperimentConfig:
     """
-    Holds all configuration parameters for the experiment, including display, timing, trial structure,
-    stimulus mapping, serial port, and TCP communication settings.
+    Holds all configuration parameters for the non-EEG training experiment, including display, timing, 
+    trial structure, and stimulus mapping. TCP communication and ERD feedback removed for training mode.
     """
     def __init__(self):
         # Screen dimensions
@@ -109,7 +104,6 @@ class ExperimentConfig:
         self.INITIAL_CALIBRATION_DURATION_MS = 3000
         self.FIXATION_IN_TRIAL_DURATION_MS = 3000
         self.IMAGE_DISPLAY_DURATION_MS = 2000
-        self.ERD_FEEDBACK_DURATION_MS = 2000
         self.SHORT_BREAK_DURATION_MS = 1500
         self.LONG_BREAK_DURATION_MS = 60* 1000  # 60 seconds
 
@@ -213,8 +207,7 @@ class ExperimentConfig:
         # Number of characters to write in writing task
         self.NUMBER_OF_CHARACTERS_TO_WRITE = 5
         
-        self.TCP_HOST =  '127.0.0.1'
-        self.TCP_PORT = 50000  # The port used by the server
+        # TCP communication removed for non-EEG training
         
 
 
@@ -233,22 +226,17 @@ class Experiment:
         self.data_logger = MockDataLogger({
             "data_folder": "data_non_eeg",
             "filename_template": "{participant_id}_non_eeg_session_log_{timestamp}.csv",
-            "fieldnames": ["participant_id", "block", "trial_num", "condition", "response_time", "timestamp", "server_feedback"]
+            "fieldnames": ["participant_id", "block", "trial_num", "condition", "response_time", "timestamp"]
         })
         self.participant_id = "P" + str(random.randint(100, 999)) # Random participant ID for session
-        self.er_data_queue = queue.Queue() # For potential future ER data reception
-        self.tcp_client = TCPClient(self.config.TCP_HOST, self.config.TCP_PORT)
-        self.erd_history = [] # Placeholder for ERD history
-        self.received_data_queue = queue.Queue() # Queue to pass data from thread to main loop
-        self.stop_listener_event = threading.Event() # Event to signal the listener thread to stop
+        # ERD-related components removed for non-EEG training
 
     def _close_all_connections(self):
         """
-        Closes all hardware and network connections (serial, TCP).
+        Closes all hardware connections (serial only for non-EEG training).
         """
         self.serial_comm.close()
-        if self.tcp_client: # If you implement a TCP client, uncomment this
-            self.tcp_client.close(self.stop_listener_event)
+        # TCP connections removed for non-EEG training
 
     def run_trial(self, trial_number_global, trial_condition):
         """
@@ -319,21 +307,11 @@ class Experiment:
 
     def _initialize_hardware_and_display(self):
         """
-        Initializes serial port, loads images, and starts TCP listener thread if possible.
+        Initializes serial port and loads images for non-EEG training.
         """
         self.serial_comm.initialize()
         self.display.load_stimulus_images()
-
-        if self.tcp_client.connect():
-            self.tcp_listener = threading.Thread(
-                target=self.tcp_client.tcp_listener_thread,
-                name="TCPListener",
-                args=(self.received_data_queue, self.stop_listener_event),
-                daemon=True
-            )
-            self.tcp_listener.start()
-        else:
-            print("Warning: TCP connection failed. Proceeding without TCP data reception.")
+        print("Non-EEG training mode: No TCP connections needed.")
 
     def _show_intro_screen(self):
         """
@@ -353,7 +331,7 @@ class Experiment:
         Handles trial randomization, feedback, and breaks.
         """
         self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_START)
-        self._drain_server_queue()
+        # No server queue to drain in non-EEG training
 
         # self.display.display_loading_screen("Generating trials for Block...", font=self.display.FONT_MEDIUM)
         for _ in range(3):
@@ -394,11 +372,9 @@ class Experiment:
 
     def _handle_trial_feedback(self, block_num, trial_in_block, global_trial_num, condition):
         """
-        Handles feedback after each trial: logs data, displays ERD feedback, and manages breaks.
+        Handles feedback after each trial: logs data and manages breaks (no ERD feedback for non-EEG training).
         """
-        server_feedback = self._get_server_feedback()
-        erd_value = self._extract_erd_value(server_feedback)
-
+        # Log trial data (no ERD feedback for non-EEG training)
         self.data_logger.add_trial_data({
             "participant_id": self.participant_id,
             "block": block_num,
@@ -406,53 +382,17 @@ class Experiment:
             "global_trial_num": global_trial_num,
             "condition": condition,
             "category": self.trial_generator.get_condition_category(condition),
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "server_feedback": json.dumps(server_feedback)
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
         })
 
-        self.erd_history.append(erd_value)
-        if condition != self.config.BLANK_CONDITION_NAME:
-            self.display.display_erd_feedback_bar(erd_value, duration_ms=self.config.ERD_FEEDBACK_DURATION_MS)
+        # No ERD feedback display in non-EEG training
+        print(f"Trial {global_trial_num} completed: {condition} (Non-EEG training - no feedback)")
+        
         self.serial_comm.send_trigger(self.config.TRIGGER_SHORT_BREAK_ONSET)
         self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
 
-    def _get_server_feedback(self):
-        """
-        Retrieves the latest feedback from the TCP server (if available).
-        """
-        if not self.tcp_client.socket:
-            return {}
-        try:
-            raw = self.received_data_queue.get_nowait()
-            return json.loads(raw) if raw else {}
-        except queue.Empty:
-            return {}
-        except json.JSONDecodeError:
-            print("Warning: Received non-JSON feedback.")
-            return {}
-
-    def _extract_erd_value(self, feedback):
-        """
-        Extracts the ERD value from the server feedback dictionary.
-        Returns 0.0 if not present or invalid.
-        """
-        try:
-            erd = float(feedback.get("erd_percent", 0.0))
-            print(f"Received ERD value: {erd}")
-            return erd
-        except (ValueError, TypeError):
-            print(f"Invalid ERD value: {feedback.get('erd_percent')}. Using 0.0.")
-            return 0.0
-
-    def _drain_server_queue(self):
-        """
-        Empties the received data queue, keeping only the latest server response.
-        """
-        latest_response = ""
-        while not self.received_data_queue.empty():
-            latest_response = self.received_data_queue.get_nowait()
-        if latest_response:
-            print(f"Latest server response: {latest_response}")
+    # ERD-related methods removed for non-EEG training
+    # No TCP server feedback or ERD processing needed
 
     def _check_exit_keys(self):
         """
