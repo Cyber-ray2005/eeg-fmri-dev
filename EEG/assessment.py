@@ -110,7 +110,7 @@ class ExperimentConfig:
         # Image file names for different stimulus types
         self.SIXTH_FINGER_IMAGE_NAME = "Hand_SixthFinger_Highlighted.png"
         self.REST_FINGER_IMAGE_NAME = "Rest.png"
-        self.SIXTH_FINGER_IMAGE_NAME_BLUE = "Hand_SixthFinger_Highlighted_Blue.png"
+        self.SIXTH_FINGER_IMAGE_NAME_BLUE = "Hand_SixthFinger_Highlighted.png"
         
         # Mapping of finger types to their corresponding image files
         # Regular (red) highlighting for motor imagery trials
@@ -121,11 +121,11 @@ class ExperimentConfig:
             "middle": "Hand_Middle_Highlighted.png",
             "ring": "Hand_Ring_Highlighted.png",
             "pinky": "Hand_Pinky_Highlighted.png",
-            "thumb_blue": "Hand_Thumb_Highlighted_Blue.png",
-            "index_blue": "Hand_Index_Highlighted_Blue.png",
-            "middle_blue": "Hand_Middle_Highlighted_Blue.png",
-            "ring_blue": "Hand_Ring_Highlighted_Blue.png",
-            "pinky_blue": "Hand_Pinky_Highlighted_Blue.png"
+            "thumb_blue": "Hand_Thumb_Highlighted.png",
+            "index_blue": "Hand_Index_Highlighted.png",
+            "middle_blue": "Hand_Middle_Highlighted.png",
+            "ring_blue": "Hand_Ring_Highlighted.png",
+            "pinky_blue": "Hand_Pinky_Highlighted.png"
         }
         
         # List of all normal finger types used in the experiment
@@ -298,7 +298,7 @@ class Experiment:
             self.display.display_image_stimulus(
                 current_image_surface, 
                 self.config.IMAGE_DISPLAY_DURATION_MS, 
-                (0, 0, current_image_surface.get_width(), current_image_surface.get_height() * 0.75)
+                (0, 0, current_image_surface.get_width(), current_image_surface.get_height())
             )
 
 
@@ -343,12 +343,13 @@ class Experiment:
         if trial_condition == self.config.BLANK_CONDITION_NAME:
             # BLANK/REST TRIAL: Display "REST" text instead of finger image
             self.serial_comm.send_trigger(stimulus_trigger_code)
-            self.display.display_message_screen(
-                "REST", 
-                duration_ms=self.config.IMAGE_DISPLAY_DURATION_MS, 
-                font=self.display.FONT_LARGE, 
-                bg_color=self.config.GRAY
-            )
+            # self.display.display_message_screen(
+            #     "REST", 
+            #     duration_ms=self.config.IMAGE_DISPLAY_DURATION_MS, 
+            #     font=self.display.FONT_LARGE, 
+            #     bg_color=self.config.GRAY
+            # )
+            self.display_image_stimulus(self.display.scaled_images["rest"], self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, self.display.scaled_images["rest"].get_width(), self.display.scaled_images["rest"].get_height()))
         elif trial_condition in self.display.scaled_images:
             # FINGER IMAGERY TRIAL: Display finger image stimulus
             if stimulus_trigger_code is not None:
@@ -360,7 +361,7 @@ class Experiment:
                 self.display.display_image_stimulus(
                     current_image_surface, 
                     self.config.IMAGE_DISPLAY_DURATION_MS, 
-                    (0, 0, current_image_surface.get_width(), current_image_surface.get_height() * 0.75)
+                    (0, 0, current_image_surface.get_width(), current_image_surface.get_height())
                 )
             else:
                 # Warning: stimulus exists but no trigger defined
@@ -369,7 +370,7 @@ class Experiment:
                 self.display.display_image_stimulus(
                     current_image_surface, 
                     self.config.IMAGE_DISPLAY_DURATION_MS, 
-                    (0, 0, current_image_surface.get_width(), current_image_surface.get_height() * 0.75)
+                    (0, 0, current_image_surface.get_width(), current_image_surface.get_height())
                 )
         else:
             # ERROR: Unknown trial condition
