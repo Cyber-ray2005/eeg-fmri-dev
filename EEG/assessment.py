@@ -116,7 +116,7 @@ class ExperimentConfig:
         # Regular (red) highlighting for motor imagery trials
         # Blue highlighting for motor execution trials
         self.NORMAL_FINGER_IMAGE_MAP = {
-            "thumb": "Hand_Index_Highlighted.png",      # Note: This seems to be incorrect mapping
+            "thumb": "Hand_Thumb_Highlighted.png",
             "index": "Hand_Index_Highlighted.png",
             "middle": "Hand_Middle_Highlighted.png",
             "ring": "Hand_Ring_Highlighted.png",
@@ -434,10 +434,7 @@ class Experiment:
         self.display.display_message_screen("Motor Execution Trials", duration_ms=2000, font=self.display.FONT_LARGE)
         
         # Display instructions for motor execution phase
-        instruction = ("In the next slides, you will see a hand illustration \n"
-                      "with one of the fingers highlighted in #BLUE:BLUE#.\n\n"
-                      "Flex and extend the encircled finger. \n\n"
-                      "Press any key to continue.")
+        instruction = "In the next slides, you will see a hand illustration \n with one of the fingers highlighted less gray(whiter).\n\n Flex and extend the highlighted finger. \n\n Press any key to continue."
         self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
         
         # Create randomized list of motor execution trials (all finger types including sixth)
@@ -455,11 +452,7 @@ class Experiment:
         self.display.display_message_screen("Motor Imagery Trials", duration_ms=2000, font=self.display.FONT_LARGE)
         
         # Display instructions for motor imagery phase
-        instruction = ("In the next slides, you will see a hand illustration \n"
-                      "with one of the fingers encircled in #RED:RED#. \n\n"
-                      "Imagine, kinesthetically, flexing and extending the encircled finger. \n"
-                      "Please try to avoid any movement throughout the exercise. \n\n"
-                      "Press any key to continue.")
+        instruction = "In the next slides, you will see a hand illustration\nwith one of the fingers highlighted less gray.\n\nImagine, kinesthetically, flexing and extending the higlighted finger.\nPlease try to avoid any movement throughout the exercise.\n\nPress any key to continue."
         self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
         
         # === MAIN EXPERIMENTAL BLOCKS ===
