@@ -503,3 +503,12 @@ if __name__ == "__main__":
         finally:
             # Ensure resources are closed even if an unexpected error occurs before the graceful shutdown
             experiment._close_all_connections()
+            # Ensure pygame is properly terminated to prevent hanging processes
+            print("\n" + "="*50)
+            print("TRAINING EXPERIMENT ENDED")
+            print("="*50)
+            try:
+                pygame.quit()
+            except:
+                pass  # Pygame might already be quit
+            sys.exit(0)
