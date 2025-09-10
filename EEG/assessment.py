@@ -621,3 +621,12 @@ if __name__ == "__main__":
             # Ensure all hardware connections are closed even if errors occur
             # This prevents resource leaks and hardware conflicts
             experiment._close_all_connections()
+            # Ensure pygame is properly terminated to prevent hanging processes
+            print("\n" + "="*50)
+            print("ASSESSMENT EXPERIMENT ENDED")
+            print("="*50)
+            try:
+                pygame.quit()
+            except:
+                pass  # Pygame might already be quit
+            sys.exit(0)
