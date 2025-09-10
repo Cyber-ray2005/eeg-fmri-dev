@@ -349,7 +349,12 @@ class Experiment:
             #     font=self.display.FONT_LARGE, 
             #     bg_color=self.config.GRAY
             # )
-            self.display_image_stimulus(self.display.scaled_images["rest"], self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, self.display.scaled_images["rest"].get_width(), self.display.scaled_images["rest"].get_height()))
+            current_image_surface = self.display.scaled_images[trial_condition]
+            self.display.display_image_stimulus(
+                    current_image_surface, 
+                    self.config.IMAGE_DISPLAY_DURATION_MS, 
+                    (0, 0, current_image_surface.get_width(), current_image_surface.get_height())
+                )
         elif trial_condition in self.display.scaled_images:
             # FINGER IMAGERY TRIAL: Display finger image stimulus
             if stimulus_trigger_code is not None:

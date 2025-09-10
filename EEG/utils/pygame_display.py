@@ -93,6 +93,10 @@ class PygameDisplay:
                 self.config.SIXTH_FINGER_IMAGE_NAME_BLUE, self.config.IMAGE_FOLDER,
                 self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT
             )
+            self.scaled_images["blank"] = self._load_and_scale_image(
+                self.config.REST_FINGER_IMAGE_NAME, self.config.IMAGE_FOLDER,
+                self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT
+            )
             # Load all normal finger images (red and blue variants)
             for finger_type, img_name in self.config.NORMAL_FINGER_IMAGE_MAP.items():
                 self.scaled_images[finger_type] = self._load_and_scale_image(
