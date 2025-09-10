@@ -127,7 +127,7 @@ class ExperimentConfig:
         self.SIXTH_FINGER_IMAGE_NAME = "Hand_SixthFinger_Highlighted.png"
         self.SIXTH_FINGER_IMAGE_NAME_BLUE = "Hand_SixthFinger_Highlighted.png"
         self.NORMAL_FINGER_IMAGE_MAP = {
-            "thumb": "Hand_Index_Highlighted.png",
+            "thumb": "Hand_Thumb_Highlighted.png",
             "index": "Hand_Index_Highlighted.png",
             "middle": "Hand_Middle_Highlighted.png",
             "ring": "Hand_Ring_Highlighted.png",
@@ -343,7 +343,7 @@ class Experiment:
             
             # Motor execution phase
             self.display.display_message_screen("Motor Execution Trials", duration_ms=2000, font=self.display.FONT_LARGE)
-            instruction = "In the next slides, you will see a hand illustration \n with one of the fingers highlighted in #BLUE:BLUE#.\n\n Flex and extend the encircled finger. \n\n Press any key to continue."
+            instruction = "In the next slides, you will see a hand illustration \n with one of the fingers highlighted less gray(whiter).\n\n Flex and extend the highlighted finger. \n\n Press any key to continue."
             self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
             
             motor_execution_trails = self.config.NORMAL_FINGER_TYPES + ["sixth"]
@@ -358,7 +358,7 @@ class Experiment:
 
             # Motor imagery phase
             self.display.display_message_screen("Motor Imagery Trials", duration_ms=2000, font=self.display.FONT_LARGE)
-            instruction = "In the next slides, you will see a hand illustration\nwith one of the fingers encircled in #RED:RED#.\n\nImagine, kinesthetically, flexing and extending the encircled finger.\nPlease try to avoid any movement throughout the exercise.\n\nPress any key to continue."
+            instruction = "In the next slides, you will see a hand illustration\nwith one of the fingers highlighted less gray(whiter).\n\nImagine, kinesthetically, flexing and extending the higlighted finger.\nPlease try to avoid any movement throughout the exercise.\n\nPress any key to continue."
             self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_MEDIUM)
 
             for trial_index, condition in enumerate(trial_conditions, 1):
