@@ -258,7 +258,12 @@ class Experiment:
             # Blank (rest) trial: show rest message
             self.serial_comm.send_trigger(stimulus_trigger_code)
             # self.display.display_message_screen("REST", duration_ms=self.config.IMAGE_DISPLAY_DURATION_MS, font=self.display.FONT_LARGE, bg_color=self.config.GRAY)
-            self.display.display_image_stimulus(self.display.scaled_images["rest"], self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, self.display.scaled_images["rest"].get_width(), self.display.scaled_images["rest"].get_height()))
+            current_image_surface = self.display.scaled_images[trial_condition]
+            self.display.display_image_stimulus(
+                    current_image_surface, 
+                    self.config.IMAGE_DISPLAY_DURATION_MS, 
+                    (0, 0, current_image_surface.get_width(), current_image_surface.get_height())
+                )
         elif trial_condition in self.display.scaled_images:
             # Show the appropriate finger image
             if stimulus_trigger_code is not None:
