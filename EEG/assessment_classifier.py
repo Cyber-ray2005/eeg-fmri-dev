@@ -271,6 +271,32 @@ class AssessmentClassifier:
         print(f"Finished ERD calculation. Successfully processed {processed_epochs} epochs.")
         return results
     
+    def calculate_rest_boundary(self, erd_results, target_value='erd_value', outlier_range=(-100, 100)):
+        """
+        Calculate dynamic boundary threshold using REST trials as baseline.
+        
+        Args:
+            erd_results (pd.DataFrame): DataFrame containing ERD values and stimulus labels
+            target_value (str): Column name to calculate boundary from
+            outlier_range (tuple): Range to filter outliers (min, max)
+            
+        Returns:
+            float: Mean ERD value from REST trials to use as boundary threshold
+        """
+        # Filter for REST trials (stimulus value 7) and remove outliers
+        rest_trials = erd_results[
+            (erd_results['stimulus'] == 7) &  # REST condition
+            (erd_results[target_value].between(outlier_range[0], outlier_range[1]))
+        ]
+        
+        if len(rest_trials) == 0:
+            print("Warning: No valid REST trials found for boundary calculation. Using boundary=0")
+            return 0.0
+        
+        boundary = rest_trials[target_value].mean()
+        print(f"Dynamic REST boundary calculated: {boundary:.3f} (from {len(rest_trials)} REST trials)")
+        return boundary
+
     def get_summary(self, erd_results, boundary, target_value='erd_value'):
         """
         Generate summary statistics for ERD results by stimulus category.
@@ -279,7 +305,7 @@ class AssessmentClassifier:
         
         Args:
             erd_results (pd.DataFrame): DataFrame containing ERD values and stimulus labels
-            boundary (float): Threshold to filter ERD values by sign
+            boundary (float): Threshold to filter ERD values by sign (can be dynamic REST baseline)ena
             target_value (str): Column name to summarize
             
         Returns:
@@ -301,14 +327,16 @@ class AssessmentClassifier:
             # Apply filtering based on boundary and category
             if category_name in ['NT', 'ST']:
                 # For motor imagery, we expect negative ERD (desynchronization)
+                # Compare against the boundary (could be 0 or REST average)
                 filtered_df = erd_results[
                     (erd_results[target_value] < boundary) &
                     (erd_results['stimulus'].isin(stim_values))
                 ]
             else:  # 'Rest' category
-                # For rest, we expect positive ERD (synchronization) or different pattern
+                # For REST trials, always compare against 0 (not the dynamic boundary)
+                # We expect positive ERD (synchronization) compared to baseline
                 filtered_df = erd_results[
-                    (erd_results[target_value] > boundary) &
+                    (erd_results[target_value] > 0) &
                     (erd_results['stimulus'].isin(stim_values))
                 ]
             
@@ -365,8 +393,15 @@ class AssessmentClassifier:
                 print("No valid ERD results obtained for this method.")
                 continue
             
-            # Generate summary statistics
-            summary_df = self.get_summary(results_df, boundary=0, target_value='erd_value')
+            # Generate summary statistics with both static and dynamic boundaries
+            print("\n--- Static Boundary Analysis (boundary=0) ---")
+            summary_df_static = self.get_summary(results_df, boundary=0, target_value='erd_value')
+            print(summary_df_static.to_string(index=False))
+            
+            # Calculate dynamic REST boundary and generate summary
+            rest_boundary = self.calculate_rest_boundary(results_df, target_value='erd_value')
+            print(f"\n--- Dynamic REST Boundary Analysis (boundary={rest_boundary:.3f}) ---")
+            summary_df = self.get_summary(results_df, boundary=rest_boundary, target_value='erd_value')
             
             # Print formatted summary
             print(summary_df.to_string(index=False))
@@ -378,7 +413,9 @@ class AssessmentClassifier:
             # Store results for potential further analysis
             all_results[method_name] = {
                 'results_df': results_df,
-                'summary_df': summary_df
+                'summary_df_static': summary_df_static,
+                'summary_df_rest': summary_df,
+                'rest_boundary': rest_boundary
             }
         
         print("\n" + "="*60)
@@ -414,7 +451,15 @@ class AssessmentClassifier:
             print("No valid ERD results obtained.")
             return None
         
-        summary_df = self.get_summary(results_df, boundary=0, target_value='erd_value')
+        # Generate summary with both static and dynamic boundaries
+        print("\n--- Static Boundary Analysis (boundary=0) ---")
+        summary_df_static = self.get_summary(results_df, boundary=0, target_value='erd_value')
+        print(summary_df_static.to_string(index=False))
+        
+        # Calculate dynamic REST boundary and generate summary
+        rest_boundary = self.calculate_rest_boundary(results_df, target_value='erd_value')
+        print(f"\n--- Dynamic REST Boundary Analysis (boundary={rest_boundary:.3f}) ---")
+        summary_df = self.get_summary(results_df, boundary=rest_boundary, target_value='erd_value')
         
         print("\n--- Summary Results ---")
         print(summary_df.to_string(index=False))
@@ -423,7 +468,119 @@ class AssessmentClassifier:
         
         return {
             'results_df': results_df,
+            'summary_df_static': summary_df_static,
+            'summary_df_rest': summary_df,
+            'rest_boundary': rest_boundary,
+            'method': method
+        }
+    
+    def run_single_method_analysis_rest_only(self, method='moving_average'):
+        """
+        Run analysis for a single ERD method with REST boundary information but using boundary=0 as default.
+        
+        This method calculates the REST boundary for reference but uses 0 as the actual threshold,
+        providing both static analysis and REST boundary context.
+        
+        Args:
+            method (str): ERD method to use
+            
+        Returns:
+            dict: Dictionary containing results DataFrame and analysis with boundary=0
+        """
+        print(f"\n=== Running Analysis with REST Boundary Context: {method} ===")
+        
+        if method == "moving_average":
+            results = self.calculate_erd_for_all_markers(
+                method="moving_average",
+                moving_average_window_size=self.config.MOVING_AVERAGE_WINDOW_SIZE,
+                moving_average_method=self.config.MOVING_AVERAGE_METHOD
+            )
+        else:
+            results = self.calculate_erd_for_all_markers(method=method)
+        
+        results_df = pd.DataFrame(results)
+        
+        if len(results_df) == 0:
+            print("No valid ERD results obtained.")
+            return None
+        
+        # Calculate and USE REST boundary as the actual threshold
+        rest_boundary = self.calculate_rest_boundary(results_df, target_value='erd_value')
+        
+        # Use REST boundary as the actual threshold for analysis
+        print(f"\n--- Analysis Results (using REST boundary={rest_boundary:.3f}) ---")
+        summary_df = self.get_summary(results_df, boundary=rest_boundary, target_value='erd_value')
+        
+        print(summary_df.to_string(index=False))
+        total_count = summary_df['Count'].apply(lambda x: int(x.split('/')[0])).sum()
+        print(f"Total: {total_count}")
+        
+        print(f"\nNote: Motor imagery trials compared against participant's REST average ({rest_boundary:.3f})")
+        
+        return {
+            'results_df': results_df,
             'summary_df': summary_df,
+            'boundary_used': rest_boundary,
+            'rest_boundary_reference': rest_boundary,
+            'method': method
+        }
+    
+    def run_comparative_analysis(self, method='moving_average'):
+        """
+        Run comparative analysis showing both boundary=0 and REST boundary results side by side.
+        
+        Args:
+            method (str): ERD method to use
+            
+        Returns:
+            dict: Dictionary containing both analyses for comparison
+        """
+        print(f"\n=== Comparative Analysis: {method} ===")
+        
+        if method == "moving_average":
+            results = self.calculate_erd_for_all_markers(
+                method="moving_average",
+                moving_average_window_size=self.config.MOVING_AVERAGE_WINDOW_SIZE,
+                moving_average_method=self.config.MOVING_AVERAGE_METHOD
+            )
+        else:
+            results = self.calculate_erd_for_all_markers(method=method)
+        
+        results_df = pd.DataFrame(results)
+        
+        if len(results_df) == 0:
+            print("No valid ERD results obtained.")
+            return None
+        
+        # Calculate REST boundary
+        rest_boundary = self.calculate_rest_boundary(results_df, target_value='erd_value')
+        
+        # Analysis with boundary=0
+        print("\n--- BOUNDARY = 0 (Static Threshold) ---")
+        summary_static = self.get_summary(results_df, boundary=0, target_value='erd_value')
+        print(summary_static.to_string(index=False))
+        total_static = summary_static['Count'].apply(lambda x: int(x.split('/')[0])).sum()
+        print(f"Total: {total_static}")
+        
+        # Analysis with REST boundary
+        print(f"\n--- BOUNDARY = {rest_boundary:.3f} (REST-based Threshold) ---")
+        summary_rest = self.get_summary(results_df, boundary=rest_boundary, target_value='erd_value')
+        print(summary_rest.to_string(index=False))
+        total_rest = summary_rest['Count'].apply(lambda x: int(x.split('/')[0])).sum()
+        print(f"Total: {total_rest}")
+        
+        print(f"\n--- COMPARISON SUMMARY ---")
+        print(f"Static boundary (0): {total_static} valid trials")
+        print(f"REST boundary ({rest_boundary:.3f}): {total_rest} valid trials")
+        print(f"Difference: {total_rest - total_static} trials")
+        
+        return {
+            'results_df': results_df,
+            'summary_static': summary_static,
+            'summary_rest': summary_rest,
+            'rest_boundary': rest_boundary,
+            'total_static': total_static,
+            'total_rest': total_rest,
             'method': method
         }
 
@@ -439,10 +596,50 @@ def parse_arguments():
         description="Motor Imagery EEG Assessment Classifier",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
+BOUNDARY ANALYSIS OPTIONS:
+
+1. STATIC BOUNDARY (DEFAULT):
+   Uses boundary=0 as threshold for classification
+   - NT/ST trials: Valid if ERD < 0 (desynchronization)
+   - REST trials: Valid if ERD > 0 (synchronization)
+
+2. REST BOUNDARY CONTEXT:
+   Calculates REST boundary for reference but uses boundary=0 for analysis
+   - Shows what REST baseline would be
+   - Still uses boundary=0 for actual classification
+   - Useful for understanding participant's baseline
+
+3. COMPARATIVE ANALYSIS:
+   Shows both static (boundary=0) and REST boundary results side-by-side
+   - Compares classification results between methods
+   - Shows difference in valid trial counts
+   - Best for understanding impact of boundary choice
+
+USAGE EXAMPLES:
+
+Basic Analysis (DEFAULT - shows both static and REST boundaries):
     python assessment_classifier.py --participant randy
+
+Single Method with Static Boundary Only:
+    python assessment_classifier.py -p randy --method moving_average
+
+REST Context (boundary=0 used, REST shown for reference):
+    python assessment_classifier.py -p randy --method moving_average --use_rest_boundary
+
+Side-by-Side Comparison:
+    python assessment_classifier.py -p randy --method compare
+
+All Methods Analysis:
+    python assessment_classifier.py -p randy --method all
+
+Custom Data Directory:
     python assessment_classifier.py -p john --data_dir ./custom/path/
-    python assessment_classifier.py -p sarah -d /path/to/data --method moving_average
+
+DEFAULTS:
+- Method: all (runs all ERD calculation methods)
+- Boundary: Static boundary=0
+- Data Directory: ./data/rawdata/
+- Moving Average Window: 75 samples
         """
     )
     
@@ -463,9 +660,9 @@ Examples:
     parser.add_argument(
         '-m', '--method',
         type=str,
-        choices=['bandpass', 'welch', 'db_correction', 'moving_average', 'all'],
+        choices=['bandpass', 'welch', 'db_correction', 'moving_average', 'all', 'compare'],
         default='all',
-        help='ERD calculation method to use (default: all methods)'
+        help='ERD calculation method: bandpass, welch, db_correction, moving_average, all (default), compare (side-by-side boundary comparison)'
     )
     
     parser.add_argument(
@@ -473,6 +670,12 @@ Examples:
         type=int,
         default=75,
         help='Window size for moving average method in samples (default: 75)'
+    )
+    
+    parser.add_argument(
+        '--use_rest_boundary',
+        action='store_true',
+        help='Use REST boundary as threshold: motor imagery compared against participant REST average instead of 0'
     )
     
     return parser.parse_args()
@@ -490,6 +693,7 @@ def main():
         print(f"Participant: {args.participant}")
         print(f"Data Directory: {args.data_dir}")
         print(f"Method: {args.method}")
+        print(f"Use REST Boundary: {args.use_rest_boundary}")
         
         # Initialize configuration with runtime parameters
         config = AssessmentConfig(
@@ -507,7 +711,11 @@ def main():
         classifier.load_data()
         
         # Run analysis based on specified method
-        if args.method == 'all':
+        if args.method == 'compare':
+            # Run comparative analysis showing both boundaries
+            results = classifier.run_comparative_analysis('moving_average')
+            return results
+        elif args.method == 'all':
             # Run complete analysis with all methods
             all_results = classifier.run_analysis()
             
@@ -520,7 +728,10 @@ def main():
             return all_results, detailed_results
         else:
             # Run analysis for single method
-            results = classifier.run_single_method_analysis(args.method)
+            if args.use_rest_boundary:
+                results = classifier.run_single_method_analysis_rest_only(args.method)
+            else:
+                results = classifier.run_single_method_analysis(args.method)
             return results
         
     except Exception as e:
