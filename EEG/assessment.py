@@ -451,10 +451,10 @@ class Experiment:
         
         # === MOTOR EXECUTION PHASE ===
         # Brief motor execution trials to establish baseline motor patterns
-        self.display.display_message_screen("Motor Execution Trials", duration_ms=2000, font=self.display.FONT_LARGE)
+        self.display.display_message_screen("#blue:MOTOR EXECUTION# Trials", duration_ms=2000, font=self.display.FONT_LARGE)
         
         # Display instructions for motor execution phase
-        instruction = "In the next slides, you will see a hand illustration \n with one of the fingers highlighted less gray(whiter).\n\n Flex and extend the highlighted finger. \n\n Press any key to continue."
+        instruction = "#blue:MOTOR EXECUTION#\n\nIn the next slides, you will see a hand illustration \n with one of the fingers highlighted less gray(whiter).\n\n Flex and extend the highlighted finger. \n\n Press any key to continue."
         self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
         
         # Create randomized list of motor execution trials (all finger types including sixth)
@@ -469,10 +469,10 @@ class Experiment:
 
         # === MOTOR IMAGERY PHASE ===
         # Main experimental phase with multiple blocks of motor imagery trials
-        self.display.display_message_screen("Motor Imagery Trials", duration_ms=2000, font=self.display.FONT_LARGE)
+        self.display.display_message_screen("#red:MOTOR IMAGERY# Trials", duration_ms=2000, font=self.display.FONT_LARGE)
         
         # Display instructions for motor imagery phase
-        instruction = "In the next slides, you will see a hand illustration\nwith one of the fingers highlighted less gray.\n\nImagine, kinesthetically, flexing and extending the higlighted finger.\nPlease try to avoid any movement throughout the exercise.\n\nPress any key to continue."
+        instruction = "#red:MOTOR IMAGERY#\n\nIn the next slides, you will see a hand illustration\nwith one of the fingers highlighted less gray.\n\nImagine, kinesthetically, flexing and extending the higlighted finger.\nPlease try to avoid any movement throughout the exercise.\n\nPress any key to continue."
         self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
         
         # === MAIN EXPERIMENTAL BLOCKS ===

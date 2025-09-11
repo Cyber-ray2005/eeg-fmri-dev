@@ -103,7 +103,7 @@ class ExperimentConfig:
         self.INTRO_DURATION_MS = 5000
         self.INITIAL_CALIBRATION_DURATION_MS = 3000
         self.FIXATION_IN_TRIAL_DURATION_MS = 3000
-        self.IMAGE_DISPLAY_DURATION_MS = 2000
+        self.IMAGE_DISPLAY_DURATION_MS = 3000
         self.SHORT_BREAK_DURATION_MS = 1500
         self.LONG_BREAK_DURATION_MS = 60* 1000  # 60 seconds
 
@@ -367,8 +367,8 @@ class Experiment:
                 return
             
             # Motor execution phase
-            self.display.display_message_screen("Motor Execution Trials", duration_ms=2000, font=self.display.FONT_LARGE)
-            instruction = "In the next slides, you will see a hand illustration \n with one of the fingers highlighted less gray(whiter).\n\n Flex and extend the highlighted finger. \n\n Press any key to continue."
+            self.display.display_message_screen("#blue:MOTOR EXECUTION# Trials", duration_ms=2000, font=self.display.FONT_LARGE)
+            instruction = "#blue:MOTOR EXECUTION#\n\nIn the next slides, you will see a hand illustration \n with one of the fingers highlighted less gray(whiter).\n\n Flex and extend the highlighted finger. \n\n Press any key to continue."
             self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
             
             motor_execution_trails = self.config.NORMAL_FINGER_TYPES + ["sixth"]
@@ -382,9 +382,9 @@ class Experiment:
                 self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
 
             # Motor imagery phase
-            self.display.display_message_screen("Motor Imagery Trials", duration_ms=2000, font=self.display.FONT_LARGE)
-            instruction = "In the next slides, you will see a hand illustration\nwith one of the fingers highlighted less gray(whiter).\n\nImagine, kinesthetically, flexing and extending the higlighted finger.\nPlease try to avoid any movement throughout the exercise.\n\nPress any key to continue."
-            self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_MEDIUM)
+            self.display.display_message_screen("#red:MOTOR IMAGERY# Trials", duration_ms=2000, font=self.display.FONT_LARGE)
+            instruction = "#red:MOTOR IMAGERY#\n\nIn the next slides, you will see a hand illustration\nwith one of the fingers highlighted less gray(whiter).\n\nImagine, kinesthetically, flexing and extending the higlighted finger.\nPlease try to avoid any movement throughout the exercise.\n\nPress any key to continue."
+            self.display.display_message_screen(instruction, wait_for_key=True, font=self.display.FONT_LARGE)
 
             for trial_index, condition in enumerate(trial_conditions, 1):
                 self._check_exit_keys()
