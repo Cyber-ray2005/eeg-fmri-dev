@@ -246,9 +246,19 @@ class Experiment:
         print(f"Global Trial: {trial_number_global}, Condition: {trial_condition} "
               f"(Category: {self.trial_generator.get_condition_category(trial_condition)})")
 
-        # Display fixation cross
-        self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET) # Trigger for fixation cross
-        self.display.display_fixation_cross(random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500]))
+        # Display blank image instead of fixation cross
+        self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET) # Trigger for fixation onset
+        # Original fixation cross code (commented out):
+        # self.display.display_fixation_cross(random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500]))
+        
+        # New blank image display:
+        fixation_duration = random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500])
+        blank_image_surface = self.display.scaled_images["blank"]
+        self.display.display_image_stimulus(
+            blank_image_surface, 
+            fixation_duration, 
+            (0, 0, blank_image_surface.get_width(), blank_image_surface.get_height())
+        )
 
         # Play beep to indicate stimulus onset
         cross_platform_beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
@@ -297,9 +307,19 @@ class Experiment:
         print(f"Motor Execution Trial: {trial_number_global}, Condition: {trial_condition} "
               f"(Category: {self.trial_generator.get_condition_category(trial_condition)})")
 
-        # Display fixation cross
+        # Display blank image instead of fixation cross
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET)
-        self.display.display_fixation_cross(random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500]))
+        # Original fixation cross code (commented out):
+        # self.display.display_fixation_cross(random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500]))
+        
+        # New blank image display:
+        fixation_duration = random.choice([self.config.FIXATION_IN_TRIAL_DURATION_MS+500, self.config.FIXATION_IN_TRIAL_DURATION_MS-500])
+        blank_image_surface = self.display.scaled_images["blank"]
+        self.display.display_image_stimulus(
+            blank_image_surface, 
+            fixation_duration, 
+            (0, 0, blank_image_surface.get_width(), blank_image_surface.get_height())
+        )
         
         cross_platform_beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
         
