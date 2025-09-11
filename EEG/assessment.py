@@ -275,12 +275,22 @@ class Experiment:
         # Display fixation cross to prepare participant for stimulus
         # Send EEG trigger to mark fixation onset
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET)
-        # Display fixation with slight timing variation to prevent anticipation
+        # Display blank image instead of fixation cross with slight timing variation to prevent anticipation
+        # Original fixation cross code (commented out):
+        # self.display.display_fixation_cross(fixation_duration)
+        
         fixation_duration = random.choice([
             self.config.FIXATION_IN_TRIAL_DURATION_MS + 500, 
             self.config.FIXATION_IN_TRIAL_DURATION_MS - 500
         ])
-        self.display.display_fixation_cross(fixation_duration)
+        
+        # New blank image display:
+        blank_image_surface = self.display.scaled_images["blank"]
+        self.display.display_image_stimulus(
+            blank_image_surface, 
+            fixation_duration, 
+            (0, 0, blank_image_surface.get_width(), blank_image_surface.get_height())
+        )
         
         # Play beep sound to indicate trial start
         cross_platform_beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
@@ -325,12 +335,22 @@ class Experiment:
         # === FIXATION PHASE ===
         # Display fixation cross to prepare participant for stimulus
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET)
-        # Add slight timing variation to prevent anticipation effects
+        # Display blank image instead of fixation cross with slight timing variation to prevent anticipation effects
+        # Original fixation cross code (commented out):
+        # self.display.display_fixation_cross(fixation_duration)
+        
         fixation_duration = random.choice([
             self.config.FIXATION_IN_TRIAL_DURATION_MS + 500, 
             self.config.FIXATION_IN_TRIAL_DURATION_MS - 500
         ])
-        self.display.display_fixation_cross(fixation_duration)
+        
+        # New blank image display:
+        blank_image_surface = self.display.scaled_images["blank"]
+        self.display.display_image_stimulus(
+            blank_image_surface, 
+            fixation_duration, 
+            (0, 0, blank_image_surface.get_width(), blank_image_surface.get_height())
+        )
 
         # Play audio cue to indicate trial start
         cross_platform_beep(self.config.BEEP_FREQUENCY, self.config.BEEP_DURATION_MS)
