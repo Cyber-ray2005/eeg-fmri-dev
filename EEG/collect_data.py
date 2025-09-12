@@ -432,7 +432,12 @@ class EEGDataCollector:
                 # Perform live calculations
                 print(f"       Epoch extracted for '{pending_marker['description']}'. Shape: {epoch_data.shape}. Performing live calculations...")
                 
-                erd_results = self.data_processor.calculate_erd(epoch_data)
+                erd_results = self.data_processor.calculate_erd_moving_average(
+                    epoch_data, 
+                    window_size_samples=100,
+                    return_mean=True, 
+                    method='percentage'
+                )
 
                 if erd_results is not None:
                     data_to_send = {
