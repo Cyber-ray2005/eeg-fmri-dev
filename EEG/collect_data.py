@@ -444,11 +444,8 @@ class EEGDataCollector:
                 if erd_results is not None:
                     # Convert numpy types to Python types for JSON serialization
                     if isinstance(erd_results, tuple):
-                        erd_mean, erd_time_series = erd_results
-                        erd_data = {
-                            "mean": float(erd_mean),
-                            "time_series": erd_time_series.tolist() if hasattr(erd_time_series, 'tolist') else erd_time_series
-                        }
+                        erd_mean, _ = erd_results
+                        erd_data = erd_mean
                     else:
                         erd_data = float(erd_results) if hasattr(erd_results, 'item') else erd_results
                     
