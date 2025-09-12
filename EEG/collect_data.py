@@ -440,11 +440,21 @@ class EEGDataCollector:
                 )
 
                 if erd_results is not None:
+                    # Convert numpy types to Python types for JSON serialization
+                    if isinstance(erd_results, tuple):
+                        erd_mean, erd_time_series = erd_results
+                        erd_data = {
+                            "mean": float(erd_mean),
+                            "time_series": erd_time_series.tolist() if hasattr(erd_time_series, 'tolist') else erd_time_series
+                        }
+                    else:
+                        erd_data = float(erd_results) if hasattr(erd_results, 'item') else erd_results
+                    
                     data_to_send = {
                         "timestamp": time.time(),
                         "marker_description": pending_marker['description'],
-                        "marker_stream_pos": marker_stream_pos,
-                        "erd_percent": erd_results,
+                        "marker_stream_pos": int(marker_stream_pos),
+                        "erd_percent": erd_data,
                         "channel_names": [self.receiver.channel_names[i] for i in self.config.FOCUS_CHANNELS]
                     }
                     self.broadcaster.broadcast_data(data_to_send)

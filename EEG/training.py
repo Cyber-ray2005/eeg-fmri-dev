@@ -423,6 +423,7 @@ class Experiment:
         Extracts the ERD value from the server feedback dictionary.
         Returns 0.0 if not present or invalid.
         """
+        print(f"Received feedback from TCP connection: {feedback}")
         try:
             erd = float(feedback.get("erd_percent", 0.0))
             print(f"Received ERD value: {erd}")
