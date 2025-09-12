@@ -33,15 +33,46 @@ class TCPClient:
         """
         Function to be run in a separate thread to listen for incoming TCP data.
         Puts received data into a thread-safe queue.
+        Handles message framing by buffering data and splitting on newlines.
         """
+        byte_buffer = b""  # Buffer for incomplete bytes
+        max_buffer_size = 10240  # 10KB max buffer to prevent memory issues
+        
         while not stop_event.is_set():
             if self.socket:
                 try:
-                    data = self.socket.recv(1024)  # Adjust buffer size as needed
+                    data = self.socket.recv(1024)
                     if data:
-                        decoded_data = data.decode('utf-8').strip()  # Decode bytes to string
-                        # print(f"Received from TCP server: {decoded_data}")
-                        data_queue.put(decoded_data)  # Put data into the queue
+                        # Add bytes to buffer
+                        byte_buffer += data
+                        
+                        # Prevent buffer from growing too large
+                        if len(byte_buffer) > max_buffer_size:
+                            print(f"Warning: TCP buffer exceeded {max_buffer_size} bytes, clearing buffer")
+                            byte_buffer = b""
+                            continue
+                        
+                        # Try to decode and split messages
+                        try:
+                            # Decode the entire buffer
+                            text_buffer = byte_buffer.decode('utf-8')
+                            
+                            # Split on newlines to get complete messages
+                            while '\n' in text_buffer:
+                                line, text_buffer = text_buffer.split('\n', 1)
+                                line = line.strip()
+                                if line:  # Only put non-empty lines in queue
+                                    # print(f"Received complete message: {line}")
+                                    data_queue.put(line)
+                            
+                            # Convert remaining text back to bytes for next iteration
+                            byte_buffer = text_buffer.encode('utf-8')
+                            
+                        except UnicodeDecodeError:
+                            # Partial UTF-8 sequence, keep the bytes for next iteration
+                            # print("Partial UTF-8 sequence, waiting for more data")
+                            pass
+                            
                     elif not data:  # Server closed connection
                         print("TCP server closed the connection.")
                         break
