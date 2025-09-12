@@ -18,6 +18,8 @@ import platform
 import subprocess
 import sys
 
+# Step 1 : Import the library
+import finger_controller as fc
 
 def cross_platform_beep(frequency=1000, duration_ms=100):
     """
@@ -186,6 +188,8 @@ class Experiment:
     hardware communication, data logging, and feedback display.
     """
     def __init__(self):
+        # Step 2 : In the Experiment class init, calibrate the finger by setting to 0
+        fc.execute_finger(0) 
         self.config = ExperimentConfig()
         self.display = PygameDisplay(self.config)
         self.serial_comm = SerialCommunication(self.config.SERIAL_PORT, self.config.BAUD_RATE)
@@ -302,6 +306,9 @@ class Experiment:
         if stimulus_trigger_code is not None:
             current_image_surface = self.display.scaled_images[trial_condition+"_blue"]
             self.serial_comm.send_trigger(stimulus_trigger_code)
+            if trial_condition =="sixth":
+                fc.execute_finger(100)  
+
             self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()))
 
     def _initialize_hardware_and_display(self):
@@ -398,6 +405,9 @@ class Experiment:
         })
 
         self.erd_history.append(erd_value)
+        if condition == "sixth":
+            if erd_value < 0:
+                fc.execute_finger(100)
         if condition != self.config.BLANK_CONDITION_NAME:
             self.display.display_erd_feedback_bar(erd_value, duration_ms=self.config.ERD_FEEDBACK_DURATION_MS)
         self.serial_comm.send_trigger(self.config.TRIGGER_SHORT_BREAK_ONSET)

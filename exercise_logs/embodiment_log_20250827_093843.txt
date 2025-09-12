@@ -1,0 +1,7 @@
+[2025-08-27 09:38:49] Exercise started.
+[2025-08-27 09:38:50] Displaying character: Pencil
+[2025-08-27 09:38:51] Displaying character: Door
+[2025-08-27 09:38:51] Displaying character: Table
+[2025-08-27 09:38:52] Displaying character: Cloud
+[2025-08-27 09:38:52] Displaying character: Tree
+[2025-08-27 09:38:52] Exercise finished.

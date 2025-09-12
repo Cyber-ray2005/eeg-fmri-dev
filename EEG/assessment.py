@@ -16,6 +16,9 @@ from dotenv import load_dotenv                               # Loads environment
 import platform                                              # For cross-platform compatibility
 import subprocess                                            # For system audio commands
 
+#import finger functions
+import finger_controller as fc
+
 
 def cross_platform_beep(frequency=1000, duration_ms=100):
     """
@@ -215,6 +218,9 @@ class Experiment:
         Initialize the experiment with all necessary components and configurations.
         Sets up display, communication, data logging, and generates participant ID.
         """
+        # Start the finger calibartion
+        fc.execute_finger(0)
+
         # Load configuration settings
         self.config = ExperimentConfig()
         
@@ -297,7 +303,11 @@ class Experiment:
         
         # Get the appropriate trigger code for blue (motor execution) version
         stimulus_trigger_code = self.config.STIMULUS_TRIGGER_MAP.get(trial_condition + "_blue")
-        
+        if trial_condition == "sixth":
+            print('Finger should flex')
+            fc.execute_finger(100)
+            
+
         # Display the stimulus if trigger code exists
         if stimulus_trigger_code is not None:
             # Get the blue-highlighted version of the stimulus image
