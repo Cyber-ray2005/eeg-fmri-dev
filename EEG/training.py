@@ -421,11 +421,16 @@ class Experiment:
             return {}
         try:
             raw = self.received_data_queue.get_nowait()
-            return json.loads(raw) if raw else {}
+            print(f"Received raw data from queue: {repr(raw)}")
+            parsed = json.loads(raw) if raw else {}
+            print(f"Successfully parsed JSON: {type(parsed)}")
+            return parsed
         except queue.Empty:
             return {}
-        except json.JSONDecodeError:
-            print("Warning: Received non-JSON feedback.")
+        except json.JSONDecodeError as e:
+            print(f"Warning: Received non-JSON feedback. Raw data: {repr(raw)}")
+            print(f"JSON decode error: {e}")
+            print(f"Raw data length: {len(raw) if raw else 0}")
             return {}
 
     def _extract_erd_value(self, feedback):

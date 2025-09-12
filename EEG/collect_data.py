@@ -211,13 +211,15 @@ class ERDBroadcaster:
             try:
                 message = json.dumps(data) + "\n"
                 self.client_connection.sendall(message.encode('utf-8'))
-                # print(f"Broadcasted ERD data.") # Muted for less console spam
+                print(f"Successfully broadcasted: {len(message)} bytes")
             except BrokenPipeError:
                 print("Client disconnected, resetting connection.")
                 self.client_connection.close()
                 self.client_connection = None
             except Exception as e:
                 print(f"Error broadcasting data: {e}")
+                # Print the data that failed to broadcast for debugging
+                print(f"Failed data: {repr(data)}")
         else:
             # print("Broadcasting not enabled or no client connected.") # Muted for less console spam
             pass
