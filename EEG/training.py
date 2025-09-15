@@ -10,7 +10,7 @@ import json
 
 from utils.trial_generator import TrialGenerator
 from utils.pygame_display import PygameDisplay
-from utils.logger import TrialDataLogger
+from utils.logger import TrialDataLogger, ERDLogger
 from utils.serial_communication import SerialCommunication
 from utils.tcp_client import TCPClient # --- NEW: Import the TCP client class ---
 from embodiment.EmbodimentExcercise import EmbodimentExercise # Runs pre-experiment embodiment exercise
@@ -201,6 +201,7 @@ class Experiment:
             "filename_template": "{participant_id}_session_log_{timestamp}.csv",
             "fieldnames": ["participant_id", "block", "trial_num", "condition", "response_time", "timestamp", "server_feedback"]
         })
+        self.erd_logger = ERDLogger()  # Initialize ERD-specific logger
         self.participant_id = "P" + str(random.randint(100, 999)) # Random participant ID for session
         self.er_data_queue = queue.Queue() # For potential future ER data reception
         self.tcp_client = TCPClient(self.config.TCP_HOST, self.config.TCP_PORT)
@@ -405,6 +406,10 @@ class Experiment:
         })
 
         self.erd_history.append(erd_value)
+        
+        # Log ERD value to dedicated logger
+        self.erd_logger.log_erd(global_trial_num, condition, erd_value)
+        
         if condition == "sixth":
             if erd_value < 0:
                 fc.execute_finger(100)
