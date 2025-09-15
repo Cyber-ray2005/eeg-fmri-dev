@@ -353,7 +353,9 @@ class PygameDisplay:
         pygame.display.flip()
     
     def display_erd_feedback_bar(self, erd_value, duration_ms=1500):
-        # Display a feedback bar representing ERD value (0-100%)
+        # Display a feedback bar representing ERD value (-100% to +100%)
+        # More negative values = more green and fuller (good imagery)
+        # More positive values = more red and less full (poor imagery)
         self.screen.fill(self.config.BLACK)
 
         bar_width = int(self.config.SCREEN_WIDTH * 0.6)
@@ -361,9 +363,17 @@ class PygameDisplay:
         bar_x = (self.config.SCREEN_WIDTH - bar_width) // 2
         bar_y = self.config.SCREEN_HEIGHT // 2
 
-        # Clamp ERD value
-        erd_value = max(min(erd_value, 100), 0)
-        target_fill = int((erd_value / 100.0) * (bar_width))
+        # Clamp ERD value between -100 and +100
+        erd_value = max(min(erd_value, 100), -100)
+        
+        # Calculate fill amount: only negative values show progress
+        # -100% = full bar, 0% or positive = no fill (no progress)
+        target_fill = 0  # Initialize to 0 (no fill by default)
+        
+        if erd_value < 0:
+            # Only negative values get fill: scale from 0 (at 0%) to full width (at -100%)
+            fill_percentage = abs(erd_value) / 100.0
+            target_fill = int(fill_percentage * bar_width)
 
         start_time = pygame.time.get_ticks()
         current_fill = 0
@@ -372,13 +382,18 @@ class PygameDisplay:
             self.screen.fill(self.config.BLACK)
 
             # Determine bar color based on ERD value
-            bar_color = (0, 200, 0)  # Default Green
-            if erd_value < 20:
-                bar_color = (255, 0, 0)  # Red
-            elif 20 <= erd_value <= 50:
-                bar_color = (255, 165, 0) # Orange
-            else: # erd_value > 50
-                bar_color = (0, 200, 0) # Green
+            if erd_value <= -50:
+                # Very good imagery: bright green
+                bar_color = (0, 255, 0)  
+            elif -50 < erd_value <= -20:
+                # Good imagery: medium green
+                bar_color = (0, 200, 0)  
+            elif -20 < erd_value <= 10:
+                # Neutral: yellow/orange
+                bar_color = (255, 200, 0) 
+            else:  # erd_value > 10
+                # Poor imagery: red
+                bar_color = (255, 0, 0)
 
             # Draw background bar
             pygame.draw.rect(self.screen, self.config.GRAY, (bar_x, bar_y, bar_width, bar_height))
@@ -390,10 +405,19 @@ class PygameDisplay:
                 current_fill -= min(5, current_fill - target_fill)
 
             # Draw fill with dynamic color
-            pygame.draw.rect(self.screen, bar_color, (bar_x, bar_y, current_fill, bar_height)) # Starts at bar_x, fills right
+            pygame.draw.rect(self.screen, bar_color, (bar_x, bar_y, current_fill, bar_height))
             
-            # Label
-            percent_text = self.FONT_MEDIUM.render(f"Quality of Imagery: {erd_value:.1f}%", True, self.config.WHITE)
+            # Label with better description
+            if erd_value <= -50:
+                quality_text = "Excellent Imagery"
+            elif erd_value <= -20:
+                quality_text = "Good Imagery"
+            elif erd_value <= 10:
+                quality_text = "Moderate Imagery"
+            else:
+                quality_text = "Poor Imagery"
+                
+            percent_text = self.FONT_MEDIUM.render(f"{quality_text}: {erd_value:.1f}%", True, self.config.WHITE)
             text_rect = percent_text.get_rect(center=(self.config.SCREEN_WIDTH // 2, bar_y - 60))
             self.screen.blit(percent_text, text_rect)
 
