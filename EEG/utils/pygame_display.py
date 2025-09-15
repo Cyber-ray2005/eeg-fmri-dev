@@ -353,9 +353,9 @@ class PygameDisplay:
         pygame.display.flip()
     
     def display_erd_feedback_bar(self, erd_value, duration_ms=1500):
-        # Display a feedback bar representing ERD value (-100% to +100%)
-        # More negative values = more green and fuller (good imagery)
-        # More positive values = more red and less full (poor imagery)
+        # Display a feedback bar representing ERD quality
+        # Only negative ERD values show progress (good motor imagery)
+        # Positive or zero values show no progress
         self.screen.fill(self.config.BLACK)
 
         bar_width = int(self.config.SCREEN_WIDTH * 0.6)
@@ -366,34 +366,31 @@ class PygameDisplay:
         # Clamp ERD value between -100 and +100
         erd_value = max(min(erd_value, 100), -100)
         
-        # Calculate fill amount: only negative values show progress
-        # -100% = full bar, 0% or positive = no fill (no progress)
-        target_fill = 0  # Initialize to 0 (no fill by default)
-        
-        if erd_value < 0:
-            # Only negative values get fill: scale from 0 (at 0%) to full width (at -100%)
+        # Calculate display value and fill amount
+        if erd_value >= 0:
+            # Poor imagery: show 0 and no fill
+            display_value = 0
+            target_fill = 0
+            bar_color = (255, 0, 0)  # Red for poor performance
+        else:
+            # Good imagery: show absolute value and proportional fill
+            display_value = abs(erd_value)
             fill_percentage = abs(erd_value) / 100.0
             target_fill = int(fill_percentage * bar_width)
+            
+            # Green color gradients based on quality
+            if erd_value <= -50:
+                bar_color = (0, 255, 0)  # Bright green for excellent
+            elif erd_value <= -20:
+                bar_color = (0, 200, 0)  # Medium green for good
+            else:
+                bar_color = (0, 150, 0)  # Darker green for moderate
 
         start_time = pygame.time.get_ticks()
         current_fill = 0
 
         while pygame.time.get_ticks() - start_time < duration_ms:
             self.screen.fill(self.config.BLACK)
-
-            # Determine bar color based on ERD value
-            if erd_value <= -50:
-                # Very good imagery: bright green
-                bar_color = (0, 255, 0)  
-            elif -50 < erd_value <= -20:
-                # Good imagery: medium green
-                bar_color = (0, 200, 0)  
-            elif -20 < erd_value <= 10:
-                # Neutral: yellow/orange
-                bar_color = (255, 200, 0) 
-            else:  # erd_value > 10
-                # Poor imagery: red
-                bar_color = (255, 0, 0)
 
             # Draw background bar
             pygame.draw.rect(self.screen, self.config.GRAY, (bar_x, bar_y, bar_width, bar_height))
@@ -404,20 +401,12 @@ class PygameDisplay:
             elif current_fill > target_fill:
                 current_fill -= min(5, current_fill - target_fill)
 
-            # Draw fill with dynamic color
-            pygame.draw.rect(self.screen, bar_color, (bar_x, bar_y, current_fill, bar_height))
+            # Draw fill with color
+            if current_fill > 0:
+                pygame.draw.rect(self.screen, bar_color, (bar_x, bar_y, current_fill, bar_height))
             
-            # Label with better description
-            if erd_value <= -50:
-                quality_text = "Excellent Imagery"
-            elif erd_value <= -20:
-                quality_text = "Good Imagery"
-            elif erd_value <= 10:
-                quality_text = "Moderate Imagery"
-            else:
-                quality_text = "Poor Imagery"
-                
-            percent_text = self.FONT_MEDIUM.render(f"{quality_text}: {erd_value:.1f}%", True, self.config.WHITE)
+            # Simple text display: "ERD Quality: value"
+            percent_text = self.FONT_MEDIUM.render(f"ERD Quality: {display_value:.1f}", True, self.config.WHITE)
             text_rect = percent_text.get_rect(center=(self.config.SCREEN_WIDTH // 2, bar_y - 60))
             self.screen.blit(percent_text, text_rect)
 

@@ -117,3 +117,48 @@ class TextLogger:
         except IOError as e:
             print(f"Error: Could not write to log file {self.filepath}. Details: {e}")
 
+
+class ERDLogger:
+    """
+    A specialized logger for ERD values during training sessions.
+    Logs trial number, condition, and calculated ERD values to timestamped CSV files.
+    """
+    def __init__(self, log_dir: str = "erd_logs"):
+        # Create the log directory if it doesn't exist
+        os.makedirs(log_dir, exist_ok=True)
+        
+        # Generate timestamp for filename
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        filename = f"erd_values_{timestamp}.csv"
+        self.filepath = os.path.join(log_dir, filename)
+        
+        # Initialize CSV with headers
+        try:
+            with open(self.filepath, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(['timestamp', 'trial_number', 'condition', 'erd_value'])
+            print(f"ERD Logger initialized. Logging to: {self.filepath}")
+        except IOError as e:
+            print(f"Error: Could not initialize ERD log file {self.filepath}. Details: {e}")
+            self.filepath = None
+
+    def log_erd(self, trial_number: int, condition: str, erd_value: float):
+        """
+        Logs ERD data for a trial.
+        
+        Args:
+            trial_number (int): The trial number
+            condition (str): The condition/stimulus type
+            erd_value (float): The calculated ERD value
+        """
+        if not self.filepath:
+            return  # Skip if initialization failed
+            
+        try:
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+            with open(self.filepath, 'a', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow([timestamp, trial_number, condition, erd_value])
+        except IOError as e:
+            print(f"Error: Could not write ERD data to {self.filepath}. Details: {e}")
+
