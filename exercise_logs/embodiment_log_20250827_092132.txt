@@ -1,7 +1,0 @@
-[2025-08-27 09:21:58] Exercise started.
-[2025-08-27 09:22:00] Displaying character: Pencil
-[2025-08-27 09:22:03] Displaying character: Table
-[2025-08-27 09:22:03] Displaying character: Glass
-[2025-08-27 09:22:03] Displaying character: Window
-[2025-08-27 09:22:04] Displaying character: Door
-[2025-08-27 09:22:04] Exercise finished.

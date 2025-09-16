@@ -1,7 +1,0 @@
-[2025-07-03 12:12:29] Exercise started.
-[2025-07-03 12:12:33] Displaying character: Chair
-[2025-07-03 12:12:35] Displaying character: Pencil
-[2025-07-03 12:12:36] Displaying character: Tree
-[2025-07-03 12:12:37] Displaying character: Cloud
-[2025-07-03 12:12:39] Displaying character: Street
-[2025-07-03 12:12:40] Exercise finished.
