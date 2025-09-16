@@ -1,2 +1,0 @@
-Motor Execution Trial, Condition: index (Category: normal_finger_cat)
-Motor Execution Trial, Condition: ring (Category: normal_finger_cat)
