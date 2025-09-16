@@ -56,7 +56,7 @@ class AssessmentConfig:
         self.ERD_METHODS = ['bandpass', 'welch', 'db_correction', 'moving_average']
         
         # === MOVING AVERAGE SPECIFIC PARAMETERS ===
-        self.MOVING_AVERAGE_WINDOW_SIZE = 75  # Window size in samples
+        self.MOVING_AVERAGE_WINDOW_SIZE = 100  # Window size in samples
         self.MOVING_AVERAGE_METHOD = 'percentage'  # 'percentage' or 'db'
         
         # === STIMULUS MAPPING ===
@@ -639,7 +639,7 @@ DEFAULTS:
 - Method: all (runs all ERD calculation methods)
 - Boundary: Static boundary=0
 - Data Directory: ./data/rawdata/
-- Moving Average Window: 75 samples
+- Moving Average Window: 100 samples
         """
     )
     
@@ -668,8 +668,8 @@ DEFAULTS:
     parser.add_argument(
         '--window_size',
         type=int,
-        default=75,
-        help='Window size for moving average method in samples (default: 75)'
+        default=100,
+        help='Window size for moving average method in samples (default: 100)'
     )
     
     parser.add_argument(

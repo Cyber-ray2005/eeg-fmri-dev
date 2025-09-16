@@ -26,8 +26,9 @@ class EEGConfig:
         self.COLLECT_FROM_EMULATOR = False  # If True, use Emulator instead of real EEG server
 
         # Signal Processing Parameters
-        self.FOCUS_CHANNELS = [7, 39, 42, 11] # C3, C1, CP3, CP1 (0-indexed)
+        self.FOCUS_CHANNEL_NAMES = ["C3", "C1", "CP3", "CP1"]  # Motor cortex channels (name-based)
         self.FOCUS_MARKERS = ['S  1', 'S  2', 'S  3', 'S  4', 'S  5', 'S  6', 'S  7']
+        self.BAD_CHANNELS = ['FT9', 'TP9', 'FT10', 'TP10']  # Channels to exclude from analysis
         self.LOW_CUT = 8.0 # Hz (alpha band)
         self.HIGH_CUT = 30.0 # Hz (alpha band)
         self.FILTER_ORDER = 5
@@ -312,6 +313,10 @@ class EEGDataCollector:
         self.buffer_write_idx = 0
         self.total_samples_streamed = 0
         self.pending_markers_to_process = deque()
+        
+        # Channel mapping for bad channel exclusion
+        self.clean_channel_names = None
+        self.clean_to_original_mapping = None
 
     def run(self):
         """
@@ -321,6 +326,28 @@ class EEGDataCollector:
         if not self.receiver.initialize():
             return # Exit if connection fails
 
+        # Remove bad channels and create clean channel mapping
+        self.clean_channel_names = [ch for ch in self.receiver.channel_names 
+                                   if ch not in self.config.BAD_CHANNELS]
+        
+        # Create mapping from clean channels to original indices
+        self.clean_to_original_mapping = {}
+        clean_idx = 0
+        for orig_idx, ch_name in enumerate(self.receiver.channel_names):
+            if ch_name not in self.config.BAD_CHANNELS:
+                self.clean_to_original_mapping[clean_idx] = orig_idx
+                clean_idx += 1
+        
+        # Map focus channel names to clean channel indices (same as assessment classifier)
+        focus_channels_clean = []
+        for ch_name in self.config.FOCUS_CHANNEL_NAMES:
+            if ch_name in self.clean_channel_names:
+                clean_idx = self.clean_channel_names.index(ch_name)
+                focus_channels_clean.append(clean_idx)
+            else:
+                print(f"Warning: Focus channel '{ch_name}' not found in clean channel list")
+        
+        
         # self.data_processor = DataProcessor(self.config, self.receiver.sampling_frequency, self.receiver.channel_count)
         self.data_processor = ERDCalculator(
             self.receiver.sampling_frequency, 
@@ -328,8 +355,8 @@ class EEGDataCollector:
             epoch_post_stimulus_seconds=self.config.SECONDS_AFTER_MARKER,
             bandpass_high=self.config.HIGH_CUT,
             bandpass_low=self.config.LOW_CUT,
-            channel_names= self.receiver.channel_names,
-            focus_channels_indices= self.config.FOCUS_CHANNELS,
+            channel_names=self.clean_channel_names,
+            focus_channels_indices=focus_channels_clean,
             )
         self.broadcaster.initialize()
 
@@ -421,15 +448,21 @@ class EEGDataCollector:
                 
                 relative_epoch_start_in_buffer = (epoch_start_stream_pos - oldest_sample_in_buffer_stream_pos + self.buffer_write_idx - self.total_samples_streamed + buffer_samples) % buffer_samples
                 
-                epoch_data = np.full((self.receiver.channel_count, self.data_processor.epoch_total_samples), np.nan)
+                # Extract epoch data for all channels first
+                full_epoch_data = np.full((self.receiver.channel_count, self.data_processor.epoch_total_samples), np.nan)
 
                 if relative_epoch_start_in_buffer + self.data_processor.epoch_total_samples <= buffer_samples:
-                    epoch_data = self.live_eeg_buffer[:, relative_epoch_start_in_buffer : relative_epoch_start_in_buffer + self.data_processor.epoch_total_samples]
+                    full_epoch_data = self.live_eeg_buffer[:, relative_epoch_start_in_buffer : relative_epoch_start_in_buffer + self.data_processor.epoch_total_samples]
                 else: # Epoch wraps around the buffer end
                     part1_len = buffer_samples - relative_epoch_start_in_buffer
-                    epoch_data[:, :part1_len] = self.live_eeg_buffer[:, relative_epoch_start_in_buffer : buffer_samples]
+                    full_epoch_data[:, :part1_len] = self.live_eeg_buffer[:, relative_epoch_start_in_buffer : buffer_samples]
                     part2_len = self.data_processor.epoch_total_samples - part1_len
-                    epoch_data[:, part1_len:] = self.live_eeg_buffer[:, :part2_len]
+                    full_epoch_data[:, part1_len:] = self.live_eeg_buffer[:, :part2_len]
+                
+                # Remove bad channels from epoch data
+                epoch_data = np.zeros((len(self.clean_channel_names), self.data_processor.epoch_total_samples))
+                for clean_idx, orig_idx in self.clean_to_original_mapping.items():
+                    epoch_data[clean_idx, :] = full_epoch_data[orig_idx, :]
 
                 # Perform live calculations
                 print(f"       Epoch extracted for '{pending_marker['description']}'. Shape: {epoch_data.shape}. Performing live calculations...")
@@ -454,7 +487,7 @@ class EEGDataCollector:
                         "marker_description": pending_marker['description'],
                         "marker_stream_pos": int(marker_stream_pos),
                         "erd_percent": erd_data,
-                        "channel_names": [self.receiver.channel_names[i] for i in self.config.FOCUS_CHANNELS]
+                        "channel_names": self.config.FOCUS_CHANNEL_NAMES
                     }
                     self.broadcaster.broadcast_data(data_to_send)
                 else:
