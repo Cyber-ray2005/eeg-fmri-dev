@@ -406,7 +406,7 @@ class Experiment:
         })
 
         self.erd_history.append(erd_value)
-        
+        print(f"Trial {global_trial_num}; Condition: {condition}; ERD value: {erd_value}")
         # Log ERD value to dedicated logger
         self.erd_logger.log_erd(global_trial_num, condition, erd_value)
         
