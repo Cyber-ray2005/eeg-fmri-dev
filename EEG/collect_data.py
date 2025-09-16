@@ -27,7 +27,7 @@ class EEGConfig:
 
         # Signal Processing Parameters
         self.FOCUS_CHANNELS = [7, 39, 42, 11] # C3, C1, CP3, CP1 (0-indexed)
-        self.FOCUS_MARKERS = ['S  1', 'S  2', 'S  3', 'S  4', 'S  5', 'S  6']
+        self.FOCUS_MARKERS = ['S  1', 'S  2', 'S  3', 'S  4', 'S  5', 'S  6', 'S  7']
         self.LOW_CUT = 8.0 # Hz (alpha band)
         self.HIGH_CUT = 30.0 # Hz (alpha band)
         self.FILTER_ORDER = 5
