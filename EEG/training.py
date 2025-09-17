@@ -426,9 +426,7 @@ class Experiment:
             return {}
         try:
             raw = self.received_data_queue.get_nowait()
-            print(f"Received raw data from queue: {repr(raw)}")
             parsed = json.loads(raw) if raw else {}
-            print(f"Successfully parsed JSON: {type(parsed)}")
             return parsed
         except queue.Empty:
             return {}
@@ -446,7 +444,6 @@ class Experiment:
         print(f"Received feedback from TCP connection: {feedback}")
         try:
             erd = float(feedback.get("erd_percent", 0.0))
-            print(f"Received ERD value: {erd}")
             return erd
         except (ValueError, TypeError):
             print(f"Invalid ERD value: {feedback.get('erd_percent')}. Using 0.0.")

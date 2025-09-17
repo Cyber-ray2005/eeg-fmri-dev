@@ -212,7 +212,7 @@ class ERDBroadcaster:
             try:
                 message = json.dumps(data) + "\n"
                 self.client_connection.sendall(message.encode('utf-8'))
-                print(f"Successfully broadcasted: {len(message)} bytes")
+                # print(f"Successfully broadcasted: {len(message)} bytes")
             except BrokenPipeError:
                 print("Client disconnected, resetting connection.")
                 self.client_connection.close()
