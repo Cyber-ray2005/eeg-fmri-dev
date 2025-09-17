@@ -22,6 +22,8 @@ import pandas as pd
 import mne
 import os
 import argparse
+import time
+import csv
 from ERDCalculator.ERDCalculator import ERDCalculator
 
 
@@ -56,7 +58,7 @@ class AssessmentConfig:
         self.ERD_METHODS = ['bandpass', 'welch', 'db_correction', 'moving_average']
         
         # === MOVING AVERAGE SPECIFIC PARAMETERS ===
-        self.MOVING_AVERAGE_WINDOW_SIZE = 75  # Window size in samples
+        self.MOVING_AVERAGE_WINDOW_SIZE = 100  # Window size in samples
         self.MOVING_AVERAGE_METHOD = 'percentage'  # 'percentage' or 'db'
         
         # === STIMULUS MAPPING ===
@@ -97,6 +99,7 @@ class AssessmentClassifier:
         self.markers_df = None
         self.erd_calculator = None
         self.focus_channels_indices = None
+        self.trial_logger = None
         
     def load_data(self):
         """
@@ -267,6 +270,10 @@ class AssessmentClassifier:
                     result_dict['erds'] = erds
                 results.append(result_dict)
                 processed_epochs += 1
+                
+                # Log individual trial ERD if trial logger is initialized
+                if hasattr(self, 'trial_log_filepath') and self.trial_log_filepath:
+                    self._log_trial_erd(processed_epochs, stimulus_description, erd_value, method)
         
         print(f"Finished ERD calculation. Successfully processed {processed_epochs} epochs.")
         return results
@@ -358,6 +365,57 @@ class AssessmentClassifier:
         
         return pd.DataFrame(summary_data)
     
+    def _initialize_trial_logger(self, method):
+        """
+        Initialize per-trial ERD logger for the specified method.
+        
+        Args:
+            method (str): ERD calculation method being used
+        """
+        # Create the log directory if it doesn't exist
+        log_dir = "classifier_trial_logs"
+        os.makedirs(log_dir, exist_ok=True)
+        
+        # Generate timestamp for filename
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        filename = f"classifier_erd_{self.config.PARTICIPANT}_{method}_{timestamp}.csv"
+        self.trial_log_filepath = os.path.join(log_dir, filename)
+        
+        # Initialize CSV with headers
+        try:
+            with open(self.trial_log_filepath, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(['timestamp', 'trial_number', 'stimulus_code', 'condition', 'erd_value', 'method'])
+            print(f"Trial Logger initialized. Logging to: {self.trial_log_filepath}")
+        except IOError as e:
+            print(f"Error: Could not initialize trial log file {self.trial_log_filepath}. Details: {e}")
+            self.trial_log_filepath = None
+
+    def _log_trial_erd(self, trial_number, stimulus_code, erd_value, method):
+        """
+        Log ERD data for a single trial.
+        
+        Args:
+            trial_number (int): Sequential trial number
+            stimulus_code (int): Stimulus code (1-7)
+            erd_value (float): Calculated ERD value
+            method (str): ERD calculation method used
+        """
+        if not hasattr(self, 'trial_log_filepath') or not self.trial_log_filepath:
+            return  # Skip if initialization failed
+            
+        # Map stimulus code to condition name
+        condition_map = {1: 'thumb', 2: 'index', 3: 'middle', 4: 'ring', 5: 'pinky', 6: 'sixth', 7: 'blank'}
+        condition = condition_map.get(stimulus_code, f'unknown({stimulus_code})')
+        
+        try:
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+            with open(self.trial_log_filepath, 'a', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow([timestamp, trial_number, stimulus_code, condition, erd_value, method])
+        except IOError as e:
+            print(f"Error: Could not write trial ERD data to {self.trial_log_filepath}. Details: {e}")
+    
     def run_analysis(self):
         """
         Run the complete ERD analysis pipeline for all configured methods.
@@ -436,6 +494,9 @@ class AssessmentClassifier:
         """
         print(f"\n=== Running Single Method Analysis: {method} ===")
         
+        # Initialize trial logger for this method
+        self._initialize_trial_logger(method)
+        
         if method == "moving_average":
             results = self.calculate_erd_for_all_markers(
                 method="moving_average",
@@ -489,6 +550,9 @@ class AssessmentClassifier:
         """
         print(f"\n=== Running Analysis with REST Boundary Context: {method} ===")
         
+        # Initialize trial logger for this method
+        self._initialize_trial_logger(method)
+        
         if method == "moving_average":
             results = self.calculate_erd_for_all_markers(
                 method="moving_average",
@@ -536,6 +600,9 @@ class AssessmentClassifier:
             dict: Dictionary containing both analyses for comparison
         """
         print(f"\n=== Comparative Analysis: {method} ===")
+        
+        # Initialize trial logger for this method
+        self._initialize_trial_logger(method)
         
         if method == "moving_average":
             results = self.calculate_erd_for_all_markers(
@@ -639,7 +706,7 @@ DEFAULTS:
 - Method: all (runs all ERD calculation methods)
 - Boundary: Static boundary=0
 - Data Directory: ./data/rawdata/
-- Moving Average Window: 75 samples
+- Moving Average Window: 100 samples
         """
     )
     
@@ -668,8 +735,8 @@ DEFAULTS:
     parser.add_argument(
         '--window_size',
         type=int,
-        default=75,
-        help='Window size for moving average method in samples (default: 75)'
+        default=100,
+        help='Window size for moving average method in samples (default: 100)'
     )
     
     parser.add_argument(

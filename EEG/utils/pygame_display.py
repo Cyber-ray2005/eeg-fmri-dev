@@ -406,7 +406,7 @@ class PygameDisplay:
                 pygame.draw.rect(self.screen, bar_color, (bar_x, bar_y, current_fill, bar_height))
             
             # Simple text display: "ERD Quality: value"
-            percent_text = self.FONT_MEDIUM.render(f"ERD Quality: {display_value:.1f}", True, self.config.WHITE)
+            percent_text = self.FONT_MEDIUM.render(f"Imagery Quality: {display_value:.1f}", True, self.config.WHITE)
             text_rect = percent_text.get_rect(center=(self.config.SCREEN_WIDTH // 2, bar_y - 60))
             self.screen.blit(percent_text, text_rect)
 
