@@ -150,10 +150,10 @@ class ExperimentConfig:
         # === EEG TRIGGER CODES ===
         # Define trigger values (bytes) sent to EEG system for event marking
         # Experiment control triggers
-        self.TRIGGER_EXPERIMENT_START = 100
-        self.TRIGGER_EXPERIMENT_END = 101
-        self.TRIGGER_BLOCK_START = 11
-        self.TRIGGER_BLOCK_END = 12
+        # self.TRIGGER_EXPERIMENT_START = 14
+        # self.TRIGGER_EXPERIMENT_END = 101
+        self.TRIGGER_BLOCK_START = 13
+        self.TRIGGER_BLOCK_END = 14
         self.TRIGGER_FIXATION_ONSET = 10
         
         # Motor imagery stimulus triggers (red highlighting)
@@ -174,7 +174,7 @@ class ExperimentConfig:
         
         # Other triggers
         self.TRIGGER_CONTROL_STIMULUS_ONSET = 7  # For blank/rest trials
-        self.TRIGGER_SHORT_BREAK_ONSET = 20
+        # self.TRIGGER_SHORT_BREAK_ONSET = 20
         
         # === AUDIO FEEDBACK CONFIGURATION ===
         # Settings for beep sounds that indicate trial start
@@ -457,7 +457,7 @@ class Experiment:
             self.display.display_message_screen(intro_text, duration_ms=self.config.INTRO_DURATION_MS, font=self.display.FONT_LARGE)
         
         # Mark experiment start in EEG data
-        self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_START)
+        # self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_START)
         
         # === MOTOR EXECUTION PHASE ===
         # Brief motor execution trials to establish baseline motor patterns
@@ -565,6 +565,8 @@ class Experiment:
                     font=self.display.FONT_MEDIUM, 
                     server_response=block_end_server_response
                 )
+            # Mark block end in EEG data
+            self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_END)
 
             
         # === EXPERIMENT COMPLETION ===

@@ -379,7 +379,6 @@ class EEGDataCollector:
                 if data_chunk is not None and data_chunk.shape[1] > 0: # Ensure chunk is not empty
                     self.all_eeg_data.append(data_chunk)
                     num_samples_in_chunk = data_chunk.shape[1]
-
                     # Add new data to the circular buffer
                     start_idx = self.buffer_write_idx
                     end_idx = start_idx + num_samples_in_chunk
@@ -396,11 +395,13 @@ class EEGDataCollector:
 
                     # Register incoming markers
                     if markers:
-                        print(f"Received {len(markers)} markers in this chunk:")
-                        self.all_markers.extend(markers)
+                        print(f"Received {len(markers)} markers in this chunk:")                        
+                        
                         for marker_obj in markers:
                             # Marker position relative to the start of the entire stream
                             marker_stream_pos = self.total_samples_streamed - num_samples_in_chunk + marker_obj.position
+                            markers[0].position = marker_stream_pos
+                            self.all_markers.extend(markers)
                             if marker_obj.description in self.config.FOCUS_MARKERS:
                                 self.pending_markers_to_process.append({
                                     'marker_obj': marker_obj,
@@ -446,7 +447,12 @@ class EEGDataCollector:
                 # This needs careful handling for wrap-around.
                 # The total_samples_streamed - buffer_samples represents the stream_pos of the first sample in the buffer
                 
-                relative_epoch_start_in_buffer = (epoch_start_stream_pos - oldest_sample_in_buffer_stream_pos + self.buffer_write_idx - self.total_samples_streamed + buffer_samples) % buffer_samples
+
+                #ADD SNIPPET
+                offset_from_buffer_start = epoch_start_stream_pos - oldest_sample_in_buffer_stream_pos
+                relative_epoch_start_in_buffer = (self.buffer_write_idx + int(offset_from_buffer_start)) % buffer_samples
+                #END SNIPPET
+                #relative_epoch_start_in_buffer = (epoch_start_stream_pos - oldest_sample_in_buffer_stream_pos + self.buffer_write_idx - self.total_samples_streamed + buffer_samples) % buffer_samples
                 
                 # Extract epoch data for all channels first
                 full_epoch_data = np.full((self.receiver.channel_count, self.data_processor.epoch_total_samples), np.nan)

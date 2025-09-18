@@ -121,6 +121,10 @@ class AssessmentClassifier:
         # Load raw data
         self.raw_data = mne.io.read_raw_brainvision(vhdr_file, preload=True, verbose=False)
         
+        # Convert data from Volts to microvolts to match real-time data scaling
+        # MNE loads BrainVision data in V, but livestream data is typically in µV
+        self.raw_data.apply_function(lambda x: x * 1e6)
+        
         # Extract events from annotations
         self.events, self.event_id = mne.events_from_annotations(self.raw_data, verbose=False)
         

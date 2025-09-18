@@ -123,8 +123,8 @@ class ExperimentConfig:
         
 
         # Define trigger values (bytes)
-        self.TRIGGER_BLOCK_START = 14
-        self.TRIGGER_BLOCK_END = 13
+        self.TRIGGER_BLOCK_START = 13
+        self.TRIGGER_BLOCK_END = 14
         self.TRIGGER_FIXATION_ONSET = 10
         self.TRIGGER_SIXTH_FINGER_ONSET = 6
         self.TRIGGER_THUMB_ONSET = 1
