@@ -123,8 +123,8 @@ class ExperimentConfig:
         
 
         # Define trigger values (bytes)
-        self.TRIGGER_BLOCK_START = 14
-        self.TRIGGER_BLOCK_END = 13
+        self.TRIGGER_BLOCK_START = 13
+        self.TRIGGER_BLOCK_END = 14
         self.TRIGGER_FIXATION_ONSET = 10
         self.TRIGGER_SIXTH_FINGER_ONSET = 6
         self.TRIGGER_THUMB_ONSET = 1
@@ -196,11 +196,7 @@ class Experiment:
         self.trial_generator = TrialGenerator(self.config)
         # Initialize embodiment exercise (pre-experiment calibration/training)
         self.embodiment_exercise = EmbodimentExercise(self.config, enable_logging=True)
-        self.data_logger = TrialDataLogger({
-            "data_folder": "data",
-            "filename_template": "{participant_id}_session_log_{timestamp}.csv",
-            "fieldnames": ["participant_id", "block", "trial_num", "condition", "response_time", "timestamp", "server_feedback"]
-        })
+        # CSV data logger removed as per user request (empty files not needed)
         self.erd_logger = ERDLogger()  # Initialize ERD-specific logger
         self.participant_id = "P" + str(random.randint(100, 999)) # Random participant ID for session
         self.er_data_queue = queue.Queue() # For potential future ER data reception
@@ -394,16 +390,7 @@ class Experiment:
         server_feedback = self._get_server_feedback()
         erd_value = self._extract_erd_value(server_feedback)
 
-        self.data_logger.add_trial_data({
-            "participant_id": self.participant_id,
-            "block": block_num,
-            "trial_in_block": trial_in_block,
-            "global_trial_num": global_trial_num,
-            "condition": condition,
-            "category": self.trial_generator.get_condition_category(condition),
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "server_feedback": json.dumps(server_feedback)
-        })
+        # CSV data logging removed - ERD data is logged separately
 
         self.erd_history.append(erd_value)
         print(f"Trial {global_trial_num}; Condition: {condition}; ERD value: {erd_value}")
@@ -486,11 +473,7 @@ class Experiment:
         """
         self.display.display_message_screen("Experiment Finished!\n\nThank you for your participation.", duration_ms=5000, wait_for_key=True, font=self.display.FONT_LARGE)
 
-        saved_file = self.data_logger.save_data(self.participant_id)
-        if saved_file:
-            self.display.display_message_screen(f"Data saved to:\n{saved_file}", duration_ms=4000, font=self.display.FONT_SMALL)
-        else:
-            self.display.display_message_screen("Error: Could not save data!", duration_ms=3000, font=self.display.FONT_SMALL, bg_color=self.config.RED)
+        # CSV data saving removed - ERD data and exercise logs are saved separately
 
         self._close_all_connections()
         self.display.quit_pygame_and_exit()

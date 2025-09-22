@@ -150,10 +150,10 @@ class ExperimentConfig:
         # === EEG TRIGGER CODES ===
         # Define trigger values (bytes) sent to EEG system for event marking
         # Experiment control triggers
-        self.TRIGGER_EXPERIMENT_START = 100
-        self.TRIGGER_EXPERIMENT_END = 101
-        self.TRIGGER_BLOCK_START = 11
-        self.TRIGGER_BLOCK_END = 12
+        # self.TRIGGER_EXPERIMENT_START = 14
+        # self.TRIGGER_EXPERIMENT_END = 101
+        self.TRIGGER_BLOCK_START = 13
+        self.TRIGGER_BLOCK_END = 14
         self.TRIGGER_FIXATION_ONSET = 10
         
         # Motor imagery stimulus triggers (red highlighting)
@@ -174,7 +174,7 @@ class ExperimentConfig:
         
         # Other triggers
         self.TRIGGER_CONTROL_STIMULUS_ONSET = 7  # For blank/rest trials
-        self.TRIGGER_SHORT_BREAK_ONSET = 20
+        # self.TRIGGER_SHORT_BREAK_ONSET = 20
         
         # === AUDIO FEEDBACK CONFIGURATION ===
         # Settings for beep sounds that indicate trial start
@@ -233,15 +233,10 @@ class Experiment:
         # Initialize trial generator for creating randomized trial sequences
         self.trial_generator = TrialGenerator(self.config)
         
-        # Initialize data logger for saving experimental data to CSV files
-        self.data_logger = TrialDataLogger({
-            "data_folder": "experiment_logs",
-            "filename_template": "{participant_id}_session_log_{timestamp}.csv",
-            "fieldnames": ["participant_id", "block", "trial_num", "condition", "response_time", "timestamp"]
-        })
+        # CSV data logger removed as per user request (empty files not needed)
         
         # Initialize text logger for logging experimental events
-        self.logger = TextLogger()
+        self.logger = TextLogger(filename="assessment_log.txt")
         
         # Generate unique participant ID (3-digit random number with 'P' prefix)
         self.participant_id = "P" + str(random.randint(100, 999))
@@ -457,7 +452,7 @@ class Experiment:
             self.display.display_message_screen(intro_text, duration_ms=self.config.INTRO_DURATION_MS, font=self.display.FONT_LARGE)
         
         # Mark experiment start in EEG data
-        self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_START)
+        # self.serial_comm.send_trigger(self.config.TRIGGER_EXPERIMENT_START)
         
         # === MOTOR EXECUTION PHASE ===
         # Brief motor execution trials to establish baseline motor patterns
@@ -531,18 +526,7 @@ class Experiment:
                 presented_condition = self.run_trial(trial_global_num, condition)
 
                 # === DATA LOGGING ===
-                # Create trial data record with all relevant information
-                trial_data = {
-                    "participant_id": self.participant_id,
-                    "block": block_num,
-                    "trial_in_block": trial_num_in_block,
-                    "global_trial_num": trial_global_num,
-                    "condition": presented_condition,
-                    "category": self.trial_generator.get_condition_category(presented_condition),
-                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                }
-                # Add trial data to logger for later saving
-                self.data_logger.add_trial_data(trial_data)
+                # CSV data logging removed - only text logging is used
 
                 # Inter-trial interval (short break between trials)
                 self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
@@ -565,6 +549,8 @@ class Experiment:
                     font=self.display.FONT_MEDIUM, 
                     server_response=block_end_server_response
                 )
+            # Mark block end in EEG data
+            self.serial_comm.send_trigger(self.config.TRIGGER_BLOCK_END)
 
             
         # === EXPERIMENT COMPLETION ===
@@ -580,23 +566,7 @@ class Experiment:
         )
 
         # === DATA SAVING ===
-        # Save all collected experimental data to CSV file
-        saved_file = self.data_logger.save_data(self.participant_id)
-        if saved_file:
-            # Success: Show file location to experimenter
-            self.display.display_message_screen(
-                f"Data saved to:\n{saved_file}", 
-                duration_ms=4000, 
-                font=self.display.FONT_SMALL
-            )
-        else:
-            # Error: Alert experimenter that data was not saved
-            self.display.display_message_screen(
-                f"Error: Could not save data!", 
-                duration_ms=3000, 
-                font=self.display.FONT_SMALL, 
-                bg_color=self.config.RED
-            )
+        # CSV data saving removed - data is logged to text file in logs/ directory
 
         # === CLEANUP ===
         # Close all hardware connections and exit gracefully
