@@ -1,22 +1,26 @@
 """
 Supernumerary Finger Controller Library
-A non-blocking library for controlling robotic finger servos via HTTP API
+A non-blocking library for controlling robotic finger servos via Serial UART
 
 Author: Pi Ko (pi.ko@nyu.edu)
 Date: 2025
-Version: 1.0.0
+Version: 2.0.0
 
 This library provides a simple interface to control a robotic finger servo
-through HTTP API calls. It automatically discovers the device on the network,
-sends flex commands, and handles reset operations.
+through Serial UART commands. It automatically discovers the device on available
+COM ports and sends flex/reset commands.
+
+The controller communicates with the servo firmware using simple serial commands:
+- e<0-100>: Execute flex test with specified percentage
+- r: Reset to default position
 
 Installation:
-    pip install aiohttp aioconsole requests
+    pip install pyserial
 
 Usage:
     from finger_controller import FingerController
     
-    # Initialize the controller
+    # Initialize the controller (auto-discovers serial port)
     controller = FingerController()
     
     # Execute finger movement (0-100%)
@@ -26,39 +30,32 @@ Usage:
     controller.set_reset_delay(2.0)  # 2 seconds delay
 """
 
-import asyncio
-import aiohttp
-import platform
-import sys
+import serial
+import serial.tools.list_ports
 import time
 import threading
-import requests
+import platform
+import sys
+from typing import Optional, List, Tuple
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, Dict, Any, Callable
-from functools import wraps
 
-# Try to import aioconsole, install if not present
-try:
-    from aioconsole import ainput
-except ImportError:
-    print("Installing aioconsole for non-blocking input...")
-    import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "aioconsole"])
-    from aioconsole import ainput
+# Default serial settings
+DEFAULT_BAUD_RATE = 115200
+DEFAULT_TIMEOUT = 0.5
 
 
 class FingerController:
     """
     Supernumerary Finger Controller
     
-    A controller class for managing robotic finger servo operations through HTTP API.
-    Provides automatic device discovery, network verification, and non-blocking control.
+    A controller class for managing robotic finger servo operations through Serial UART.
+    Provides automatic device discovery on available COM ports.
     
     Attributes:
-        reset_delay (float): Time delay between flex and reset commands (default: 1.0 seconds)
-        base_ip (str): IP address of the servo controller device
-        base_url (str): Base URL for API endpoints
-        required_ssid (str): Required WiFi network name (default: "AIMLAB")
+        reset_delay (float): Time delay between flex and reset commands (default: 2.5 seconds)
+        port (str): Serial port name (e.g., 'COM3' on Windows, '/dev/ttyUSB0' on Linux)
+        baud_rate (int): Serial communication baud rate (default: 115200)
+        serial_conn (Serial): Active serial connection object
     
     Example:
         >>> controller = FingerController()
@@ -66,67 +63,44 @@ class FingerController:
         >>> controller.execute_finger(0)   # Return to rest position
     """
     
-    def __init__(self, reset_delay: float = 2.5, required_ssid: str = "AIMLAB", auto_discover: bool = True):
+    def __init__(self, reset_delay: float = 2.5, port: Optional[str] = None,
+                 baud_rate: int = DEFAULT_BAUD_RATE, auto_discover: bool = True):
         """
         Initialize the Finger Controller.
         
         Args:
-            reset_delay (float): Delay in seconds between flex and reset commands (default: 1.0)
-            required_ssid (str): Required WiFi SSID for operation (default: "AIMLAB")
+            reset_delay (float): Delay in seconds between flex and reset commands (default: 2.5)
+            port (Optional[str]): Specific serial port to use (default: None, auto-discover)
+            baud_rate (int): Serial baud rate (default: 115200)
             auto_discover (bool): Automatically discover device on initialization (default: True)
-        
-        Raises:
-            RuntimeError: If auto_discover is True and device cannot be found
         """
         # Configuration parameters
         self.reset_delay = reset_delay
-        self.required_ssid = required_ssid
-        self.base_ip = None
-        self.base_url = None
+        self.baud_rate = baud_rate
+        self.port = port
         
         # Internal state management
-        self._session = None
+        self.serial_conn = None
         self._executor = ThreadPoolExecutor(max_workers=2)
-        self._loop = None
-        self._thread = None
         self._discovered = False
-        
-        # Start the async event loop in a background thread
-        self._start_event_loop()
+        self._lock = threading.Lock()
         
         # Auto-discover device if requested
         if auto_discover:
             print("Initializing Supernumerary Finger Controller...")
-            if not self.discover_and_connect():
-                raise RuntimeError("Failed to discover servo controller device. Please check network connection.")
-            print(f"✓ Controller ready. Device at {self.base_ip}")
-    
-    def _start_event_loop(self):
-        """
-        Start the asyncio event loop in a background thread.
-        This allows us to run async operations from synchronous code.
-        """
-        def run_loop(loop):
-            asyncio.set_event_loop(loop)
-            loop.run_forever()
-        
-        self._loop = asyncio.new_event_loop()
-        self._thread = threading.Thread(target=run_loop, args=(self._loop,), daemon=True)
-        self._thread.start()
-        time.sleep(0.1)  # Give the loop time to start
-    
-    def _run_async(self, coro):
-        """
-        Run an async coroutine from synchronous code.
-        
-        Args:
-            coro: Async coroutine to execute
-            
-        Returns:
-            The result of the coroutine execution
-        """
-        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
-        return future.result(timeout=10)
+            if self.port:
+                # Use specified port
+                if self.connect_to_port(self.port):
+                    print(f"✓ Controller ready. Connected to {self.port}")
+                else:
+                    print(f"⚠ Failed to connect to specified port {self.port}")
+            else:
+                # Auto-discover
+                self.discover_and_connect()
+                if self.serial_conn:
+                    print(f"✓ Controller ready. Device discovered at {self.port}")
+                else:
+                    print("⚠ No servo controller found on any serial port")
     
     def set_reset_delay(self, delay: float):
         """
@@ -146,26 +120,79 @@ class FingerController:
     def discover_and_connect(self) -> bool:
         """
         Discover and connect to the servo controller device.
+        Scans all available serial ports for the servo controller.
         
-        Performs network scanning to automatically find the servo controller
-        on the current subnet. Updates base_ip and base_url on success.
+        Performs automatic detection by sending a test command to each
+        available serial port and checking for a valid response.
         
         Returns:
             bool: True if device found and connected, False otherwise
         """
-        try:
-            # Run the async discovery process
-            discovered_ip = self._run_async(self._discover_device_async())
-            
-            if discovered_ip:
-                self.base_ip = discovered_ip
-                self.base_url = f"http://{self.base_ip}"
-                self._discovered = True
-                return True
+        print("Discovering servo controller on serial ports...")
+        
+        # Get list of available serial ports
+        ports = self._get_available_ports()
+        
+        if not ports:
+            print("[WARNING] No serial ports found on system")
             return False
+        
+        print(f"Found {len(ports)} serial port(s) to scan:")
+        for port_info in ports:
+            print(f"  - {port_info[0]}: {port_info[1]}")
+        
+        # Try each port
+        for port_name, description in ports:
+            print(f"Testing {port_name}...", end=' ')
+            
+            if self._test_port(port_name):
+                print("✓ Servo controller found!")
+                self.port = port_name
+                self._discovered = True
+                
+                # Connect to the discovered port
+                return self.connect_to_port(port_name)
+            else:
+                print("✗")
+        
+        print("[WARNING] No servo controller found on any port")
+        return False
+    
+    def connect_to_port(self, port: str) -> bool:
+        """
+        Connect to a specific serial port.
+        
+        Args:
+            port (str): Serial port name
+            
+        Returns:
+            bool: True if connected successfully, False otherwise
+        """
+        try:
+            # Close existing connection if any
+            if self.serial_conn and self.serial_conn.is_open:
+                self.serial_conn.close()
+            
+            # Open new connection
+            self.serial_conn = serial.Serial(
+                port=port,
+                baudrate=self.baud_rate,
+                timeout=DEFAULT_TIMEOUT,
+                write_timeout=DEFAULT_TIMEOUT
+            )
+            
+            # Clear any pending data
+            self.serial_conn.reset_input_buffer()
+            self.serial_conn.reset_output_buffer()
+            
+            # Give device time to initialize
+            time.sleep(0.5)
+            
+            self.port = port
+            return True
             
         except Exception as e:
-            print(f"[ERROR] Discovery failed: {e}")
+            print(f"[ERROR] Failed to connect to {port}: {e}")
             return False
     
     def execute_finger(self, percentage: int) -> bool:
@@ -187,7 +214,6 @@ class FingerController:
             
         Raises:
             ValueError: If percentage is not between 0 and 100
-            RuntimeError: If device not discovered/connected
             
         Example:
             >>> controller.execute_finger(50)  # Flex to 50%
@@ -204,12 +230,12 @@ class FingerController:
         if not 0 <= percentage <= 100:
             raise ValueError(f"Percentage must be between 0 and 100, got {percentage}")
         
-        # Check if device is discovered
-        if not self._discovered or not self.base_ip:
-            print("[ERROR] Device not discovered. Run discover_and_connect() first.")
-            raise RuntimeError("Device not connected")
+        # Check if device is connected
+        if not self.serial_conn or not self.serial_conn.is_open:
+            print("[ERROR] No serial connection. Run discover_and_connect() first.")
+            return False
         
-        # Convert to integer for API
+        # Convert to integer for command
         percentage = int(percentage)
         
         # Start the command sequence in a background thread
@@ -232,282 +258,248 @@ class FingerController:
             percentage (int): Flex percentage (0-100)
         """
         try:
-            # Send flex command (non-blocking HTTP request)
-            flex_url = f"{self.base_url}/testFlexPercent?percent={percentage}"
-            
-            # Use requests with very short timeout - we don't wait for response
-            try:
-                # Fire and forget - very short timeout
-                response = requests.get(flex_url, timeout=0.5)
-                print(f"→ Flex command sent: {percentage}%")
-            except requests.Timeout:
-                # This is expected - we're not waiting for the response
-                print(f"→ Flex command sent: {percentage}% (non-blocking)")
-            except Exception as e:
-                print(f"[WARNING] Flex command may have failed: {e}")
+            with self._lock:
+                # Send flex command via serial
+                flex_command = f"e{percentage}\n"
+                
+                try:
+                    self.serial_conn.write(flex_command.encode('utf-8'))
+                    self.serial_conn.flush()
+                    print(f"→ Flex command sent: {percentage}% (serial: {flex_command.strip()})")
+                    if(percentage == 0):
+                        self.serial_conn.write("r\n".encode('utf-8'))
+                    # Read any response (non-blocking)
+                    time.sleep(0.1)  # Give device time to respond
+                    if self.serial_conn.in_waiting:
+                        response = self.serial_conn.read(self.serial_conn.in_waiting).decode('utf-8', errors='ignore')
+                        # Parse response if needed (for debugging)
+                        for line in response.split('\n'):
+                            if 'SERIAL CMD' in line or 'ERROR' in line:
+                                print(f"  Device: {line.strip()}")
+                                
+                except Exception as e:
+                    print(f"[WARNING] Flex command may have failed: {e}")
+                    return
             
             # Wait for the specified delay (hardware needs time to execute)
+            print(f"  Waiting {self.reset_delay}s for movement to complete...")
             time.sleep(self.reset_delay)
             
-            # Send reset command
-            reset_url = f"{self.base_url}/resetAll"
-            try:
-                # Fire and forget - very short timeout
-                response = requests.get(reset_url, timeout=0.5)
-                print(f"← Reset command sent")
-            except requests.Timeout:
-                # This is expected - we're not waiting for the response
-                print(f"← Reset command sent (non-blocking)")
-            except Exception as e:
-                print(f"[WARNING] Reset command may have failed: {e}")
+            with self._lock:
+                # Send reset command
+                reset_command = "r\n"
+                try:
+                    self.serial_conn.write(reset_command.encode('utf-8'))
+                    self.serial_conn.flush()
+                    print(f"← Reset command sent")
+                    
+                    # Read any response
+                    time.sleep(0.1)
+                    if self.serial_conn.in_waiting:
+                        response = self.serial_conn.read(self.serial_conn.in_waiting).decode('utf-8', errors='ignore')
+                        for line in response.split('\n'):
+                            if 'SERIAL CMD' in line or 'Reset' in line:
+                                print(f"  Device: {line.strip()}")
+                                
+                except Exception as e:
+                    print(f"[WARNING] Reset command may have failed: {e}")
                 
         except Exception as e:
             print(f"[ERROR] Command sequence failed: {e}")
     
-    def verify_network(self) -> bool:
+    def send_raw_command(self, command: str) -> Optional[str]:
         """
-        Verify that the system is connected to the correct WiFi network.
+        Send a raw command to the device and get response.
         
-        Returns:
-            bool: True if connected to required SSID, False otherwise
-        """
-        try:
-            return self._run_async(self._verify_network_async())
-        except Exception as e:
-            print(f"[ERROR] Network verification failed: {e}")
-            return False
-    
-    def ping_device(self) -> bool:
-        """
-        Ping the servo controller to check connectivity.
-        
-        Returns:
-            bool: True if device responds to ping, False otherwise
-        """
-        if not self.base_ip:
-            print("[ERROR] No device IP configured")
-            return False
+        Args:
+            command (str): Raw command to send (without newline)
             
-        try:
-            return self._run_async(self._ping_device_async())
-        except Exception as e:
-            print(f"[ERROR] Ping failed: {e}")
-            return False
-    
-    def get_status(self) -> Optional[str]:
+        Returns:
+            Optional[str]: Response from device if any, None otherwise
         """
-        Get the current status of the servo controller.
+        if not self.serial_conn or not self.serial_conn.is_open:
+            print("[ERROR] No serial connection")
+            return None
+        
+        try:
+            with self._lock:
+                # Clear buffers
+                self.serial_conn.reset_input_buffer()
+                
+                # Send command
+                self.serial_conn.write(f"{command}\n".encode('utf-8'))
+                self.serial_conn.flush()
+                
+                # Wait for response
+                time.sleep(0.2)
+                
+                # Read response
+                if self.serial_conn.in_waiting:
+                    response = self.serial_conn.read(self.serial_conn.in_waiting).decode('utf-8', errors='ignore')
+                    return response
+                    
+                return ""
+                
+        except Exception as e:
+            print(f"[ERROR] Failed to send command: {e}")
+            return None
+    
+    def reset(self) -> bool:
+        """
+        Send a reset command to return the finger to default position.
         
         Returns:
-            Optional[str]: Status string if successful, None otherwise
+            bool: True if command sent successfully, False otherwise
         """
-        if not self.base_ip:
-            print("[ERROR] No device IP configured")
-            return None
-            
+        if not self.serial_conn or not self.serial_conn.is_open:
+            print("[ERROR] No serial connection")
+            return False
+        
         try:
-            status_url = f"{self.base_url}/status"
-            response = requests.get(status_url, timeout=2.0)
-            if response.status_code == 200:
-                return response.text
-            return None
+            with self._lock:
+                self.serial_conn.write(b"r\n")
+                self.serial_conn.flush()
+                print("Reset command sent")
+                return True
         except Exception as e:
-            print(f"[ERROR] Failed to get status: {e}")
-            return None
+            print(f"[ERROR] Reset failed: {e}")
+            return False
     
     def cleanup(self):
         """
         Clean up resources and close connections.
         
-        Should be called when done using the controller, though
-        not strictly necessary due to daemon threads.
+        Should be called when done using the controller.
         """
-        if self._loop:
-            self._loop.call_soon_threadsafe(self._loop.stop)
-        if self._executor:
-            self._executor.shutdown(wait=False)
-        print("Controller cleaned up")
-    
-    # ============== ASYNC HELPER METHODS ==============
-    # These methods contain the async logic from the original code
-    
-    async def _get_local_ip_and_subnet(self) -> Optional[tuple]:
-        """
-        Get the local IP address and subnet of the current machine.
-        
-        Returns:
-            Optional[tuple]: (local_ip, subnet_prefix) or None if cannot determine
-        """
-        import socket
-        
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.settimeout(1.0)
-            s.connect(("8.8.8.8", 80))
-            local_ip = s.getsockname()[0]
-            s.close()
-            
-            parts = local_ip.split('.')
-            subnet = f"{parts[0]}.{parts[1]}.{parts[2]}"
-            
-            return local_ip, subnet
-        except:
-            return None
-    
-    async def _check_device_status(self, ip: str) -> bool:
-        """
-        Check if a device at given IP is the servo controller.
-        
-        Args:
-            ip: IP address to check
-            
-        Returns:
-            bool: True if device responds with servo status
-        """
-        test_url = f"http://{ip}/status"
-        
-        timeout = aiohttp.ClientTimeout(total=0.5)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        if self.serial_conn and self.serial_conn.is_open:
+            # Send final reset before closing
             try:
-                async with session.get(test_url) as response:
-                    if response.status == 200:
-                        text = await response.text()
-                        if text.strip().startswith("Version"):
-                            return True
+                self.serial_conn.write(b"r\n")
+                self.serial_conn.flush()
+                time.sleep(0.1)
             except:
                 pass
-        
-        return False
+            
+            # Close connection
+            self.serial_conn.close()
+            
+        if self._executor:
+            self._executor.shutdown(wait=False)
+            
+        print("Controller cleaned up")
     
-    async def _discover_device_async(self) -> Optional[str]:
+    # ============== HELPER METHODS ==============
+    
+    def _get_available_ports(self) -> List[Tuple[str, str]]:
         """
-        Scan the current network to find the servo controller device.
+        Get list of available serial ports.
         
         Returns:
-            Optional[str]: IP address of the device if found
+            List[Tuple[str, str]]: List of (port_name, description) tuples
         """
-        print("Discovering servo controller on network...")
-        
-        # Get current network subnet
-        network_info = await self._get_local_ip_and_subnet()
-        
-        if not network_info:
-            print("[ERROR] Could not determine local network")
-            return None
-        
-        local_ip, subnet = network_info
-        print(f"Scanning subnet {subnet}.1-254 for servo controller...")
-        
-        # Create list of all possible IPs in subnet
-        ips_to_check = [f"{subnet}.{i}" for i in range(1, 255)]
-        
-        # Check IPs concurrently in batches
-        batch_size = 50
-        found_devices = []
-        
-        for i in range(0, len(ips_to_check), batch_size):
-            batch = ips_to_check[i:i+batch_size]
-            tasks = [self._check_device_status(ip) for ip in batch]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            for ip, result in zip(batch, results):
-                if isinstance(result, bool) and result:
-                    found_devices.append(ip)
-                    print(f"  ✓ Found servo controller at {ip}")
-        
-        if found_devices:
-            selected_ip = found_devices[0]
-            if len(found_devices) > 1:
-                print(f"Note: Found {len(found_devices)} controllers, using {selected_ip}")
-            return selected_ip
-        
-        print("[ERROR] No servo controller found on network")
-        return None
-    
-    async def _get_current_ssid(self) -> Optional[str]:
-        """Get current WiFi SSID."""
-        current_platform = platform.system()
+        ports = []
         
         try:
-            if current_platform == "Darwin":  # macOS
-                cmd = ["/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport", "-I"]
-            elif current_platform == "Windows":
-                cmd = ["netsh", "wlan", "show", "interfaces"]
-            elif current_platform == "Linux":
-                cmd = ["iwgetid", "-r"]
-            else:
-                return None
+            available_ports = serial.tools.list_ports.comports()
             
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            try:
-                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=2.0)
-            except asyncio.TimeoutError:
-                proc.kill()
-                await proc.wait()
-                return None
-            
-            output = stdout.decode('utf-8', errors='ignore')
-            
-            if current_platform == "Darwin":
-                for line in output.split('\n'):
-                    if 'SSID' in line and 'BSSID' not in line:
-                        return line.split(':')[1].strip()
-            elif current_platform == "Windows":
-                for line in output.split('\n'):
-                    if 'SSID' in line and 'BSSID' not in line:
-                        return line.split(':')[1].strip()
-            elif current_platform == "Linux":
-                if proc.returncode == 0:
-                    return output.strip()
+            for port in available_ports:
+                # Filter out some obviously non-device ports
+                if 'Bluetooth' in port.description or 'Virtual' in port.description:
+                    continue
                     
-        except Exception:
-            pass
+                ports.append((port.device, port.description))
+                
+        except Exception as e:
+            print(f"[ERROR] Failed to list ports: {e}")
         
-        return None
+        return ports
     
-    async def _verify_network_async(self) -> bool:
-        """Check if connected to required network."""
-        current_ssid = await self._get_current_ssid()
-        if current_ssid == self.required_ssid:
-            return True
-        else:
-            print(f"[ERROR] Not connected to {self.required_ssid} (current: {current_ssid})")
-            return False
-    
-    async def _ping_device_async(self) -> bool:
-        """Ping the device to check if it's reachable."""
-        if not self.base_ip:
-            return False
+    def _test_port(self, port_name: str) -> bool:
+        """
+        Test if a port has the servo controller.
         
-        system = platform.system()
-        
-        if system == "Windows":
-            cmd = ["ping", "-n", "1", "-w", "1000", self.base_ip]
-        else:  # macOS and Linux
-            cmd = ["ping", "-c", "1", "-W", "1", self.base_ip]
+        Args:
+            port_name (str): Port name to test
+            
+        Returns:
+            bool: True if servo controller detected, False otherwise
+        """
+        test_conn = None
         
         try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+            # Try to open the port
+            test_conn = serial.Serial(
+                port=port_name,
+                baudrate=self.baud_rate,
+                timeout=0.5,
+                write_timeout=0.5
             )
             
-            try:
-                await asyncio.wait_for(proc.wait(), timeout=2.0)
-                return proc.returncode == 0
-            except asyncio.TimeoutError:
-                proc.kill()
-                await proc.wait()
-                return False
+            # Clear buffers
+            test_conn.reset_input_buffer()
+            test_conn.reset_output_buffer()
+            
+            # Wait for device to be ready
+            time.sleep(0.3)
+            
+            # Read any startup messages
+            if test_conn.in_waiting:
+                startup_msg = test_conn.read(test_conn.in_waiting).decode('utf-8', errors='ignore')
                 
-        except Exception:
+                # Check for servo controller signatures
+                if any(marker in startup_msg for marker in ['Servo Controller', 'SERIAL COMMANDS', 'Version']):
+                    return True
+            
+            # Send a test command (small flex)
+            test_conn.write(b"e0\n")
+            test_conn.flush()
+            time.sleep(0.2)
+            
+            # Check for response
+            if test_conn.in_waiting:
+                response = test_conn.read(test_conn.in_waiting).decode('utf-8', errors='ignore')
+                
+                # Look for expected response patterns
+                if 'SERIAL CMD' in response or 'Executing' in response or 'Flex' in response:
+                    return True
+                
+                # Also accept if we see encoder data (the comma-separated values)
+                if response.count(',') >= 3:  # Encoder output has multiple comma-separated values
+                    return True
+            
             return False
+            
+        except (serial.SerialException, OSError):
+            # Port might be in use or not valid
+            return False
+            
+        finally:
+            if test_conn and test_conn.is_open:
+                try:
+                    test_conn.close()
+                except:
+                    pass
+    
+    def is_connected(self) -> bool:
+        """
+        Check if controller is connected to a device.
+        
+        Returns:
+            bool: True if connected, False otherwise
+        """
+        return self.serial_conn is not None and self.serial_conn.is_open
+    
+    def get_port_info(self) -> Optional[str]:
+        """
+        Get information about the connected port.
+        
+        Returns:
+            Optional[str]: Port information string or None if not connected
+        """
+        if not self.is_connected():
+            return None
+            
+        return f"Port: {self.port}, Baud: {self.baud_rate}"
 
 
 # ============== MODULE-LEVEL CONVENIENCE FUNCTIONS ==============
@@ -516,7 +508,8 @@ class FingerController:
 _global_controller = None
 
 
-def initialize(reset_delay: float = 1.0, required_ssid: str = "AIMLAB") -> FingerController:
+def initialize(reset_delay: float = 1.0, port: Optional[str] = None,
+               baud_rate: int = DEFAULT_BAUD_RATE) -> FingerController:
     """
     Initialize the global finger controller.
     
@@ -525,7 +518,8 @@ def initialize(reset_delay: float = 1.0, required_ssid: str = "AIMLAB") -> Finge
     
     Args:
         reset_delay (float): Delay between flex and reset (default: 1.0)
-        required_ssid (str): Required WiFi network (default: "AIMLAB")
+        port (Optional[str]): Specific serial port to use (default: None, auto-discover)
+        baud_rate (int): Serial baud rate (default: 115200)
         
     Returns:
         FingerController: The initialized controller instance
@@ -536,7 +530,7 @@ def initialize(reset_delay: float = 1.0, required_ssid: str = "AIMLAB") -> Finge
         >>> finger_controller.execute_finger(50)
     """
     global _global_controller
-    _global_controller = FingerController(reset_delay, required_ssid)
+    _global_controller = FingerController(reset_delay, port=port, baud_rate=baud_rate)
     return _global_controller
 
 
@@ -588,6 +582,7 @@ def main():
     Demo/test function showing library usage.
     
     Run this file directly to test the finger controller.
+    Will automatically discover the servo controller on available serial ports.
     """
     print("=" * 60)
     print("Supernumerary Finger Controller - Demo Mode")
@@ -597,16 +592,25 @@ def main():
         # Create controller instance
         controller = FingerController(reset_delay=1.5)
         
+        if not controller.is_connected():
+            print("\n[ERROR] No servo controller found. Please check:")
+            print("  1. Device is connected via USB")
+            print("  2. Device is powered on")
+            print("  3. Correct drivers are installed")
+            return 1
+        
+        print(f"\nConnected: {controller.get_port_info()}")
         print("\nTesting finger movements...")
         print("-" * 40)
         
         # Test sequence
         test_sequence = [
+            (0, "Rest position"),
             (25, "Light flex"),
             (50, "Medium flex"),
             (75, "Strong flex"),
             (100, "Full flex"),
-            (0, "Rest position")
+            (0, "Return to rest")
         ]
         
         for percentage, description in test_sequence:
