@@ -246,11 +246,15 @@ class DataSaver:
     def __init__(self, config: EEGConfig):
         self.config = config
 
-    def save_eeg_data(self, all_eeg_data, filename="./data/collected_eeg_data.npy"):
+    def save_eeg_data(self, all_eeg_data, filename=None):
         """
-        Saves all collected EEG data to a .npy file.
+        Saves all collected EEG data to a .npy file with timestamp.
         Returns the concatenated EEG data array.
         """
+        if filename is None:
+            import time
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = f"./data/collected_eeg_data_{timestamp}.npy"
         if all_eeg_data:
             final_eeg_data = np.concatenate(all_eeg_data, axis=1)
             print(f"\nTotal collected EEG data shape: {final_eeg_data.shape}")
@@ -261,10 +265,14 @@ class DataSaver:
             print("\nNo EEG data was collected to save.")
             return None
 
-    def save_markers(self, all_markers, filename="./data/collected_markers.csv"):
+    def save_markers(self, all_markers, filename=None):
         """
-        Saves all collected markers to a CSV file.
+        Saves all collected markers to a CSV file with timestamp.
         """
+        if filename is None:
+            import time
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = f"./data/collected_markers_{timestamp}.csv"
         if all_markers:
             markers_data = []
             for marker in all_markers:
