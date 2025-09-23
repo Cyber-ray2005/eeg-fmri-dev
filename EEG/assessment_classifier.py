@@ -311,16 +311,15 @@ class AssessmentClassifier:
     def get_summary(self, erd_results, boundary, target_value='erd_value'):
         """
         Generate summary statistics for ERD results by stimulus category.
-        
-        This function replicates the get_summary function from analysis.ipynb.
+        Provides both original (all trials) and filtered statistics for comparison.
         
         Args:
             erd_results (pd.DataFrame): DataFrame containing ERD values and stimulus labels
-            boundary (float): Threshold to filter ERD values by sign (can be dynamic REST baseline)ena
+            boundary (float): Threshold to filter ERD values by sign (can be dynamic REST baseline)
             target_value (str): Column name to summarize
             
         Returns:
-            pd.DataFrame: Summary table with mean, std dev, and count for each category
+            pd.DataFrame: Summary table with original and filtered mean, std dev, and count for each category
         """
         # Define stimulus categories (NT=Normal Touch, ST=Sixth finger Touch, Rest)
         STIMULUS_CATEGORIES = {
@@ -334,6 +333,9 @@ class AssessmentClassifier:
         # Loop through each category and compute statistics
         for category_name, conditions in STIMULUS_CATEGORIES.items():
             stim_values = conditions['stimulus_values']
+            
+            # Get all trials for this category (original/unfiltered)
+            original_df = erd_results[erd_results['stimulus'].isin(stim_values)]
             
             # Apply filtering based on boundary and category
             if category_name in ['NT', 'ST']:
@@ -351,20 +353,28 @@ class AssessmentClassifier:
                     (erd_results['stimulus'].isin(stim_values))
                 ]
             
-            # Calculate summary statistics
-            std_val = filtered_df[target_value].std()
-            mean_val = filtered_df[target_value].mean()
-            count_val = filtered_df[target_value].count()
+            # Calculate original statistics (all trials)
+            orig_mean = original_df[target_value].mean()
+            orig_std = original_df[target_value].std()
+            orig_count = original_df[target_value].count()
+            
+            # Calculate filtered statistics
+            filt_mean = filtered_df[target_value].mean()
+            filt_std = filtered_df[target_value].std()
+            filt_count = filtered_df[target_value].count()
             
             # Total number of trials for the category
-            total_trials = len(erd_results[erd_results['stimulus'].isin(stim_values)])
+            total_trials = len(original_df)
             
             # Append statistics to summary
             summary_data.append({
                 'Category': category_name,
-                'Mean': f'{mean_val:.3f}',
-                'Std Dev': f'{std_val:.3f}',
-                'Count': f'{count_val}/{total_trials} ({(count_val/total_trials*100):.2f}%)'
+                'Original_Mean': f'{orig_mean:.3f}',
+                'Original_Std': f'{orig_std:.3f}',
+                'Original_Count': f'{orig_count}/{total_trials} (100.00%)',
+                'Filtered_Mean': f'{filt_mean:.3f}',
+                'Filtered_Std': f'{filt_std:.3f}',
+                'Filtered_Count': f'{filt_count}/{total_trials} ({(filt_count/total_trials*100):.2f}%)'
             })
         
         return pd.DataFrame(summary_data)
