@@ -277,7 +277,7 @@ class AssessmentClassifier:
                 
                 # Log individual trial ERD if trial logger is initialized
                 if hasattr(self, 'trial_log_filepath') and self.trial_log_filepath:
-                    self._log_trial_erd(processed_epochs, stimulus_description, erd_value, method)
+                    self._log_trial_erd(processed_epochs, stimulus_description, erd_value)
         
         print(f"Finished ERD calculation. Successfully processed {processed_epochs} epochs.")
         return results
@@ -369,6 +369,9 @@ class AssessmentClassifier:
             # Append statistics to summary
             summary_data.append({
                 'Category': category_name,
+                'Mean': f'{filt_mean:.3f}',  # Use filtered mean as main mean
+                'Std Dev': f'{filt_std:.3f}',  # Use filtered std as main std
+                'Count': f'{filt_count}/{total_trials} ({(filt_count/total_trials*100):.2f}%)',  # Main count column for backward compatibility
                 'Original_Mean': f'{orig_mean:.3f}',
                 'Original_Std': f'{orig_std:.3f}',
                 'Original_Count': f'{orig_count}/{total_trials} (100.00%)',
@@ -399,13 +402,13 @@ class AssessmentClassifier:
         try:
             with open(self.trial_log_filepath, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                writer.writerow(['timestamp', 'trial_number', 'stimulus_code', 'condition', 'erd_value', 'method'])
+                writer.writerow(['timestamp', 'trial_number', 'stimulus_code', 'condition', 'erd_value'])
             print(f"Trial Logger initialized. Logging to: {self.trial_log_filepath}")
         except IOError as e:
             print(f"Error: Could not initialize trial log file {self.trial_log_filepath}. Details: {e}")
             self.trial_log_filepath = None
 
-    def _log_trial_erd(self, trial_number, stimulus_code, erd_value, method):
+    def _log_trial_erd(self, trial_number, stimulus_code, erd_value):
         """
         Log ERD data for a single trial.
         
@@ -413,7 +416,6 @@ class AssessmentClassifier:
             trial_number (int): Sequential trial number
             stimulus_code (int): Stimulus code (1-7)
             erd_value (float): Calculated ERD value
-            method (str): ERD calculation method used
         """
         if not hasattr(self, 'trial_log_filepath') or not self.trial_log_filepath:
             return  # Skip if initialization failed
@@ -426,7 +428,7 @@ class AssessmentClassifier:
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
             with open(self.trial_log_filepath, 'a', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                writer.writerow([timestamp, trial_number, stimulus_code, condition, erd_value, method])
+                writer.writerow([timestamp, trial_number, stimulus_code, condition, erd_value])
         except IOError as e:
             print(f"Error: Could not write trial ERD data to {self.trial_log_filepath}. Details: {e}")
     
