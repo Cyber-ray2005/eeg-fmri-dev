@@ -268,7 +268,7 @@ class ERDCalculator:
             # Select the calculation method based on the 'method' parameter
             if method == 'percentage':
                 erd_window = self._compute_erd_percentage(pre_power, post_power)
-            elif method == 'db_correction':
+            elif method == 'db':
                 erd_window = self._compute_erd_db(pre_power, post_power)
             else:
                 print(f"Invalid method '{method}'. Please choose 'percentage' or 'db'.")

@@ -42,7 +42,7 @@ class AssessmentConfig:
         self.PARTICIPANT = participant
         
         # === EEG DATA PARAMETERS ===
-        self.FOCUS_CHANNEL_NAMES = ["C3", "C1", "CP3", "CP1"]  # Motor cortex channels
+        self.FOCUS_CHANNEL_NAMES = ["C1", "C3", "CP1", "CP3"]  # Motor cortex channels
         self.BAD_CHANNELS = ['FT9', 'TP9', 'FT10', 'TP10']  # Channels to exclude from analysis
         
         # === EPOCHING PARAMETERS ===
@@ -59,9 +59,9 @@ class AssessmentConfig:
         
         # === MOVING AVERAGE SPECIFIC PARAMETERS ===
         self.MOVING_AVERAGE_WINDOW_SIZE = 100  # Window size in samples
-        self.MOVING_AVERAGE_METHOD = 'percentage'  # 'percentage' or 'db'
+        self.MOVING_AVERAGE_METHOD = 'db'  # 'percentage' or 'db'
         
-        # === STIMULUS MAPPING ===
+        # === STIMULUS MAPPING === 
         self.EVENTS_MAP = {
             "sixth": 6,   # Sixth finger (supernumerary)
             "thumb": 1,
@@ -204,7 +204,7 @@ class AssessmentClassifier:
         print(f"ERD Calculator initialized with {len(channel_names)} channels")
         
     def calculate_erd_for_all_markers(self, method='bandpass', per_channel=False,
-                                    moving_average_window_size=100, moving_average_method='percentage'):
+                                    moving_average_window_size=100, moving_average_method='db'):
         """
         Calculate ERD values for all markers using the specified method.
         
@@ -356,7 +356,6 @@ class AssessmentClassifier:
             # Calculate original statistics (all trials)
             orig_mean = original_df[target_value].mean()
             orig_std = original_df[target_value].std()
-            orig_count = original_df[target_value].count()
             
             # Calculate filtered statistics
             filt_mean = filtered_df[target_value].mean()
@@ -374,7 +373,6 @@ class AssessmentClassifier:
                 'Count': f'{filt_count}/{total_trials} ({(filt_count/total_trials*100):.2f}%)',  # Main count column for backward compatibility
                 'Original_Mean': f'{orig_mean:.3f}',
                 'Original_Std': f'{orig_std:.3f}',
-                'Original_Count': f'{orig_count}/{total_trials} (100.00%)',
                 'Filtered_Mean': f'{filt_mean:.3f}',
                 'Filtered_Std': f'{filt_std:.3f}',
                 'Filtered_Count': f'{filt_count}/{total_trials} ({(filt_count/total_trials*100):.2f}%)'
