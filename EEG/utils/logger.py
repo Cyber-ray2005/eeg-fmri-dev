@@ -136,13 +136,13 @@ class ERDLogger:
         try:
             with open(self.filepath, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                writer.writerow(['timestamp', 'trial_number', 'condition', 'erd_value'])
+                writer.writerow(['timestamp', 'trial_number', 'condition', 'erd_percent', 'erd_db'])
             print(f"ERD Logger initialized. Logging to: {self.filepath}")
         except IOError as e:
             print(f"Error: Could not initialize ERD log file {self.filepath}. Details: {e}")
             self.filepath = None
 
-    def log_erd(self, trial_number: int, condition: str, erd_value: float):
+    def log_erd(self, trial_number: int, condition: str, erd_percent: float, erd_db: Optional[float]):
         """
         Logs ERD data for a trial.
         
@@ -158,7 +158,7 @@ class ERDLogger:
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
             with open(self.filepath, 'a', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
-                writer.writerow([timestamp, trial_number, condition, erd_value])
+                writer.writerow([timestamp, trial_number, condition, erd_percent, erd_db])
         except IOError as e:
             print(f"Error: Could not write ERD data to {self.filepath}. Details: {e}")
 

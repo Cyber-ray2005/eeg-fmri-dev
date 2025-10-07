@@ -389,13 +389,14 @@ class Experiment:
         """
         server_feedback = self._get_server_feedback()
         erd_value = self._extract_erd_value(server_feedback)
+        erd_db_value = self._extract_erd_db_value(server_feedback)
 
         # CSV data logging removed - ERD data is logged separately
 
         self.erd_history.append(erd_value)
-        print(f"Trial {global_trial_num}; Condition: {condition}; ERD value: {erd_value}")
-        # Log ERD value to dedicated logger
-        self.erd_logger.log_erd(global_trial_num, condition, erd_value)
+        print(f"Trial {global_trial_num}; Condition: {condition}; ERD%: {erd_value}; ERD dB: {erd_db_value}")
+        # Log ERD values to dedicated logger
+        self.erd_logger.log_erd(global_trial_num, condition, erd_value, erd_db_value)
         
         if condition == "sixth":
             if erd_value < 0:
@@ -435,6 +436,17 @@ class Experiment:
         except (ValueError, TypeError):
             print(f"Invalid ERD value: {feedback.get('erd_percent')}. Using 0.0.")
             return 0.0
+
+    def _extract_erd_db_value(self, feedback):
+        """
+        Extracts the ERD dB value from the server feedback dictionary.
+        Returns None if not present or invalid.
+        """
+        try:
+            value = feedback.get("erd_db", None)
+            return float(value) if value is not None else None
+        except (ValueError, TypeError):
+            return None
 
     def _drain_server_queue(self):
         """
