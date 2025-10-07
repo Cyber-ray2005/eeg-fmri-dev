@@ -6,6 +6,7 @@ import json
 
 from utils.trial_generator import TrialGenerator
 from utils.pygame_display import PygameDisplay
+from utils.logger import TrialDataLogger
 from embodiment.EmbodimentExcercise import EmbodimentExercise
 import platform
 import subprocess
@@ -32,23 +33,6 @@ class MockSerialCommunication:
         print("Mock Serial: Closed (no actual connection to close)")
 
 
-class MockDataLogger:
-    """
-    Mock data logger for non-EEG training.
-    Provides the same interface as TrialDataLogger but doesn't create actual files.
-    """
-    def __init__(self, config):
-        self.config = config
-        print("Mock Data Logger: Initialized (no files will be created)")
-    
-    def add_trial_data(self, trial_data):
-        print(f"Mock Data Logger: Would log trial data - Participant: {trial_data.get('participant_id')}, "
-              f"Block: {trial_data.get('block')}, Trial: {trial_data.get('global_trial_num')}, "
-              f"Condition: {trial_data.get('condition')}")
-    
-    def save_data(self, participant_id):
-        print(f"Mock Data Logger: Would save data for participant {participant_id} (no file created)")
-        return None  # Return None to indicate no file was saved
 
 
 
@@ -223,12 +207,11 @@ class Experiment:
         self.trial_generator = TrialGenerator(self.config)
         # Initialize embodiment exercise (pre-experiment calibration/training)
         self.embodiment_exercise = EmbodimentExercise(self.config, enable_logging=False)
-        self.data_logger = MockDataLogger({
-            "data_folder": "data_non_eeg",
-            "filename_template": "{participant_id}_non_eeg_session_log_{timestamp}.csv",
-            "fieldnames": ["participant_id", "block", "trial_num", "condition", "response_time", "timestamp"]
+        self.data_logger = TrialDataLogger({
+            "data_folder": "non_eeg_training",
+            "filename_template": "non_eeg_session_log_{timestamp}.csv",
+            "fieldnames": ["block", "trial_in_block", "global_trial_num", "condition", "category", "trial_type", "timestamp"]
         })
-        self.participant_id = "P" + str(random.randint(100, 999)) # Random participant ID for session
         # ERD-related components removed for non-EEG training
 
     def _close_all_connections(self):
@@ -329,6 +312,8 @@ class Experiment:
             current_image_surface = self.display.scaled_images[trial_condition+"_blue"]
             self.serial_comm.send_trigger(stimulus_trigger_code)
             self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()))
+        
+        return trial_condition
 
     def _initialize_hardware_and_display(self):
         """
@@ -379,6 +364,18 @@ class Experiment:
                 global_trial_num = (block_num - 1) * self.config.NUM_MOTOR_EXECUTION_TRIALS_PER_BLOCK + trial_index
                 print(f"Running Motor Execution Trial {global_trial_num} for condition: {condition}")
                 presented_condition = self.run_motor_execution_trial(global_trial_num, condition)
+                
+                # Log motor execution trial data
+                self.data_logger.add_trial_data({
+                    "block": block_num,
+                    "trial_in_block": trial_index,
+                    "global_trial_num": global_trial_num,
+                    "condition": presented_condition,
+                    "category": self.trial_generator.get_condition_category(presented_condition),
+                    "trial_type": "motor_execution",
+                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+                })
+                
                 self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
 
             # Motor imagery phase
@@ -393,12 +390,12 @@ class Experiment:
                 
                 # Log trial data (no feedback breaks for natural flow)
                 self.data_logger.add_trial_data({
-                    "participant_id": self.participant_id,
                     "block": block_num,
                     "trial_in_block": trial_index,
                     "global_trial_num": global_trial_num,
                     "condition": presented_condition,
                     "category": self.trial_generator.get_condition_category(presented_condition),
+                    "trial_type": "motor_imagery",
                     "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
                 })
                 
@@ -438,12 +435,11 @@ class Experiment:
         """
         self.display.display_message_screen("Experiment Finished!\n\nThank you for your participation.", duration_ms=5000, wait_for_key=True, font=self.display.FONT_LARGE)
 
-        saved_file = self.data_logger.save_data(self.participant_id)
+        saved_file = self.data_logger.save_data(None)
         if saved_file:
             self.display.display_message_screen(f"Data saved to:\n{saved_file}", duration_ms=4000, font=self.display.FONT_SMALL)
         else:
-            # For non-EEG version, no file is saved (this is expected)
-            self.display.display_message_screen("Training completed!\n(No data files created - Non-EEG version)", duration_ms=3000, font=self.display.FONT_SMALL)
+            self.display.display_message_screen("Training completed!\n(No trial data to save)", duration_ms=3000, font=self.display.FONT_SMALL)
 
         self._close_all_connections()
         self.display.quit_pygame_and_exit()
