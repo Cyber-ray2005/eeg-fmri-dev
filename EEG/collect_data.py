@@ -488,6 +488,14 @@ class EEGDataCollector:
                     method='percentage'
                 )
 
+                # Also compute ERD using dB method
+                erd_results_db = self.data_processor.calculate_erd_moving_average(
+                    epoch_data,
+                    window_size_samples=100,
+                    return_mean=True,
+                    method='db'
+                )
+
                 if erd_results is not None:
                     # Convert numpy types to Python types for JSON serialization
                     if isinstance(erd_results, tuple):
@@ -495,12 +503,22 @@ class EEGDataCollector:
                         erd_data = erd_mean
                     else:
                         erd_data = float(erd_results) if hasattr(erd_results, 'item') else erd_results
+
+                    # Prepare dB value similarly (default to None if unavailable)
+                    erd_db_value = None
+                    if erd_results_db is not None:
+                        if isinstance(erd_results_db, tuple):
+                            erd_db_mean, _ = erd_results_db
+                            erd_db_value = erd_db_mean
+                        else:
+                            erd_db_value = float(erd_results_db) if hasattr(erd_results_db, 'item') else erd_results_db
                     
                     data_to_send = {
                         "timestamp": time.time(),
                         "marker_description": pending_marker['description'],
                         "marker_stream_pos": int(marker_stream_pos),
                         "erd_percent": erd_data,
+                        "erd_db": erd_db_value,
                         "channel_names": self.config.FOCUS_CHANNEL_NAMES
                     }
                     self.broadcaster.broadcast_data(data_to_send)
