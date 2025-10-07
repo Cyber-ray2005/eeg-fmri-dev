@@ -443,10 +443,11 @@ class Experiment:
         Returns None if not present or invalid.
         """
         try:
-            value = feedback.get("erd_db", None)
-            return float(value) if value is not None else None
+            db_value = float(feedback.get("erd_db", 0.0))
+            return db_value
         except (ValueError, TypeError):
-            return None
+            print(f"Invalid ERD dB value: {feedback.get('erd_db')}. Using 0.0.")
+            return 0.0
 
     def _drain_server_queue(self):
         """
