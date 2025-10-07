@@ -11,6 +11,7 @@ from embodiment.EmbodimentExcercise import EmbodimentExercise
 import platform
 import subprocess
 import sys
+import finger_controller as fc
 
 
 class MockSerialCommunication:
@@ -201,6 +202,8 @@ class Experiment:
     hardware communication, data logging, and feedback display.
     """
     def __init__(self):
+        # calibrate the finger by setting it to 0
+        fc.execute_finger(0)
         self.config = ExperimentConfig()
         self.display = PygameDisplay(self.config)
         self.serial_comm = MockSerialCommunication(self.config.SERIAL_PORT, self.config.BAUD_RATE)
@@ -311,6 +314,8 @@ class Experiment:
         if stimulus_trigger_code is not None:
             current_image_surface = self.display.scaled_images[trial_condition+"_blue"]
             self.serial_comm.send_trigger(stimulus_trigger_code)
+            if trial_condition == "sixth":
+                fc.execute_finger(100)
             self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()))
         
         return trial_condition
