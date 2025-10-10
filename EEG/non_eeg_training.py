@@ -12,6 +12,7 @@ import platform
 import subprocess
 import sys
 import finger_controller as fc
+import argparse
 
 
 class MockSerialCommunication:
@@ -201,7 +202,7 @@ class Experiment:
     Main experiment class that manages the experiment flow, including block and trial structure,
     hardware communication, data logging, and feedback display.
     """
-    def __init__(self):
+    def __init__(self, file_base_name: str):
         # calibrate the finger by setting it to 0
         fc.execute_finger(0)
         self.config = ExperimentConfig()
@@ -209,10 +210,10 @@ class Experiment:
         self.serial_comm = MockSerialCommunication(self.config.SERIAL_PORT, self.config.BAUD_RATE)
         self.trial_generator = TrialGenerator(self.config)
         # Initialize embodiment exercise (pre-experiment calibration/training)
-        self.embodiment_exercise = EmbodimentExercise(self.config, enable_logging=False)
+        self.embodiment_exercise = EmbodimentExercise(self.config, enable_logging=True, log_name_base=file_base_name)
         self.data_logger = TrialDataLogger({
             "data_folder": "non_eeg_training",
-            "filename_template": "non_eeg_session_log_{timestamp}.csv",
+            "fixed_filename": f"{file_base_name}.csv",
             "fieldnames": ["block", "trial_in_block", "global_trial_num", "condition", "category", "trial_type", "timestamp"]
         })
         # ERD-related components removed for non-EEG training
@@ -477,6 +478,13 @@ class Experiment:
 # --- Main Experiment Loop ---
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Non-EEG training session")
+    parser.add_argument("--p", required=True, type=int, help="Participant number")
+    parser.add_argument("--w", required=True, type=int, help="Week number")
+    parser.add_argument("--s", required=True, type=int, help="Session number")
+    args = parser.parse_args()
+
+    file_base = f"P{args.p}_w{args.w}_s{args.s}"
     # Validate trial configuration before running
     config = ExperimentConfig()
     expected_total_trials = (config.NUM_SIXTH_FINGER_TRIALS_PER_BLOCK +
@@ -490,7 +498,7 @@ if __name__ == "__main__":
         print(f"Error: Mismatch in normal finger trial counts.")
         sys.exit()
     else:
-        experiment = Experiment()
+        experiment = Experiment(file_base)
         try:
             experiment.run_experiment()
         except SystemExit:
