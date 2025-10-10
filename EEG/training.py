@@ -17,6 +17,7 @@ from embodiment.EmbodimentExcercise import EmbodimentExercise # Runs pre-experim
 import platform
 import subprocess
 import sys
+import argparse
 
 # Step 1 : Import the library
 import finger_controller as fc
@@ -187,7 +188,7 @@ class Experiment:
     Main experiment class that manages the experiment flow, including block and trial structure,
     hardware communication, data logging, and feedback display.
     """
-    def __init__(self):
+    def __init__(self, file_base_name: str):
         # Step 2 : In the Experiment class init, calibrate the finger by setting to 0
         fc.execute_finger(0) 
         self.config = ExperimentConfig()
@@ -195,10 +196,9 @@ class Experiment:
         self.serial_comm = SerialCommunication(self.config.SERIAL_PORT, self.config.BAUD_RATE)
         self.trial_generator = TrialGenerator(self.config)
         # Initialize embodiment exercise (pre-experiment calibration/training)
-        self.embodiment_exercise = EmbodimentExercise(self.config, enable_logging=True)
+        self.embodiment_exercise = EmbodimentExercise(self.config, enable_logging=True, log_name_base=file_base_name)
         # CSV data logger removed as per user request (empty files not needed)
-        self.erd_logger = ERDLogger()  # Initialize ERD-specific logger
-        self.participant_id = "P" + str(random.randint(100, 999)) # Random participant ID for session
+        self.erd_logger = ERDLogger(filename=f"{file_base_name}.csv")  # Initialize ERD-specific logger
         self.er_data_queue = queue.Queue() # For potential future ER data reception
         self.tcp_client = TCPClient(self.config.TCP_HOST, self.config.TCP_PORT)
         self.erd_history = [] # Placeholder for ERD history
@@ -519,6 +519,12 @@ class Experiment:
 # --- Main Experiment Loop ---
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="EEG training session")
+    parser.add_argument("--p", required=True, type=int, help="Participant number")
+    parser.add_argument("--w", required=True, type=int, help="Week number")
+    args = parser.parse_args()
+
+    file_base = f"P{args.p}_w{args.w}_eeg"
     # Validate trial configuration before running
     config = ExperimentConfig()
     expected_total_trials = (config.NUM_SIXTH_FINGER_TRIALS_PER_BLOCK +
@@ -532,7 +538,7 @@ if __name__ == "__main__":
         print(f"Error: Mismatch in normal finger trial counts.")
         sys.exit()
     else:
-        experiment = Experiment()
+        experiment = Experiment(file_base)
         try:
             experiment.run_experiment()
         except SystemExit:

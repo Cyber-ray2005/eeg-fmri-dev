@@ -1,20 +1,23 @@
 
 from utils.pygame_display import PygameDisplay
 from utils.logger import TextLogger
+from typing import Optional
 import pygame
 import random
 
 class EmbodimentExercise:
-    def __init__(self, config, enable_logging=True):
+    def __init__(self, config, enable_logging=True, log_name_base: Optional[str] = None):
         self.config = config
         self.enable_logging = enable_logging
         
         # Initialize the logger only if logging is enabled
         if self.enable_logging:
+            filename = f"{log_name_base}.txt" if log_name_base else "embodiment_log.txt"
             self.logger = TextLogger(
                 log_dir="exercise_logs", 
-                filename="embodiment_log.txt",
-                timestamp_format="%Y-%m-%d %H:%M:%S"
+                filename=filename,
+                timestamp_format="%Y-%m-%d %H:%M:%S",
+                add_timestamp_to_filename=(log_name_base is None)
             )
         else:
             self.logger = None

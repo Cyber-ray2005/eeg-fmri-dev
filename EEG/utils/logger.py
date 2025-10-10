@@ -24,6 +24,7 @@ class TrialDataLogger:
 
         # Get folder and filename format from config
         data_folder = self.config.get("data_folder", "data")
+        fixed_filename = self.config.get("fixed_filename")
         filename_template = self.config.get(
             "filename_template",
             "{participant_id}_motor_imagery_data_{timestamp}.csv"
@@ -32,9 +33,12 @@ class TrialDataLogger:
         # Prepare directory
         os.makedirs(data_folder, exist_ok=True)
 
-        # Generate timestamp and filename
-        timestamp_str = time.strftime("%Y%m%d_%H%M%S")
-        filename = filename_template.format(participant_id=participant_id, timestamp=timestamp_str)
+        # Generate timestamp and filename (or use fixed filename if provided)
+        if fixed_filename:
+            filename = fixed_filename
+        else:
+            timestamp_str = time.strftime("%Y%m%d_%H%M%S")
+            filename = filename_template.format(participant_id=participant_id, timestamp=timestamp_str)
         filepath = os.path.join(data_folder, filename)
 
         # Write CSV
@@ -74,20 +78,20 @@ class TextLogger:
                                           If None, no timestamp is added to messages.
                                           Example: "%Y-%m-%d %H:%M:%S"
     """
-    def __init__(self, log_dir: str = "logs", filename: str = "log.txt", timestamp_format: Optional[str] = None):
+    def __init__(self, log_dir: str = "logs", filename: str = "log.txt", timestamp_format: Optional[str] = None, add_timestamp_to_filename: bool = True):
         # Create the log directory if it doesn't exist
         os.makedirs(log_dir, exist_ok=True)
-        
-        # Generate a timestamp string for the filename
-        file_timestamp = time.strftime("%Y%m%d_%H%M%S")
         
         # Split the original filename into its name and extension
         name, ext = os.path.splitext(filename)
         
-        # Create the new filename with the timestamp included
-        timestamped_filename = f"{name}_{file_timestamp}{ext}"
+        if add_timestamp_to_filename:
+            file_timestamp = time.strftime("%Y%m%d_%H%M%S")
+            final_filename = f"{name}_{file_timestamp}{ext}"
+        else:
+            final_filename = filename
         
-        self.filepath: str = os.path.join(log_dir, timestamped_filename)
+        self.filepath: str = os.path.join(log_dir, final_filename)
         self.timestamp_format: Optional[str] = timestamp_format
         
         print(f"Logger initialized. Logging to: {self.filepath}")
@@ -123,14 +127,17 @@ class ERDLogger:
     A specialized logger for ERD values during training sessions.
     Logs trial number, condition, and calculated ERD values to timestamped CSV files.
     """
-    def __init__(self, log_dir: str = "erd_logs"):
+    def __init__(self, log_dir: str = "erd_logs", filename: Optional[str] = None):
         # Create the log directory if it doesn't exist
         os.makedirs(log_dir, exist_ok=True)
         
-        # Generate timestamp for filename
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        filename = f"erd_values_{timestamp}.csv"
-        self.filepath = os.path.join(log_dir, filename)
+        # Determine filename
+        if filename:
+            self.filepath = os.path.join(log_dir, filename)
+        else:
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            default_name = f"erd_values_{timestamp}.csv"
+            self.filepath = os.path.join(log_dir, default_name)
         
         # Initialize CSV with headers
         try:
