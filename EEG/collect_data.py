@@ -7,6 +7,7 @@ import pandas as pd
 from scipy.signal import butter, filtfilt
 import mne
 from colorama import Fore, Style
+import argparse
 
 from utils.livestream_receiver import LivestreamReceiver, Marker
 from utils.emulator import Emulator
@@ -253,8 +254,10 @@ class DataSaver:
         """
         if filename is None:
             import time
+            import os
+            os.makedirs("eeg_data", exist_ok=True)
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            filename = f"./data/collected_eeg_data_{timestamp}.npy"
+            filename = f"./eeg_data/collected_eeg_data_{timestamp}.npy"
         if all_eeg_data:
             final_eeg_data = np.concatenate(all_eeg_data, axis=1)
             print(f"\nTotal collected EEG data shape: {final_eeg_data.shape}")
@@ -271,8 +274,10 @@ class DataSaver:
         """
         if filename is None:
             import time
+            import os
+            os.makedirs("eeg_data", exist_ok=True)
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            filename = f"./data/collected_markers_{timestamp}.csv"
+            filename = f"./eeg_data/collected_markers_{timestamp}.csv"
         if all_markers:
             markers_data = []
             for marker in all_markers:
@@ -308,12 +313,13 @@ class EEGDataCollector:
     """
     Orchestrates the entire EEG data collection, processing, and broadcasting pipeline.
     """
-    def __init__(self):
+    def __init__(self, file_base_name=None):
         self.config = EEGConfig()
         self.receiver = EEGReceiver(self.config)
         self.broadcaster = ERDBroadcaster(self.config)
         self.data_saver = DataSaver(self.config)
         self.data_processor = None # Initialized after connection to get sfreq, n_channels
+        self.file_base_name = file_base_name
 
         self.all_eeg_data = []
         self.all_markers = []
@@ -546,12 +552,27 @@ class EEGDataCollector:
         self.receiver.disconnect()
         self.broadcaster.close()
 
-        final_eeg_data = self.data_saver.save_eeg_data(self.all_eeg_data)
-        self.data_saver.save_markers(self.all_markers)
+        # Use custom filename if provided, otherwise use default timestamp
+        import os
+        os.makedirs("eeg_data", exist_ok=True)
+        os.makedirs("eeg_markers", exist_ok=True)
+        eeg_filename = f"./eeg_data/{self.file_base_name}.npy" if self.file_base_name else None
+        markers_filename = f"./eeg_markers/{self.file_base_name}.csv" if self.file_base_name else None
+        
+        final_eeg_data = self.data_saver.save_eeg_data(self.all_eeg_data, eeg_filename)
+        self.data_saver.save_markers(self.all_markers, markers_filename)
         self.data_saver.create_mne_raw(final_eeg_data, self.receiver.sampling_frequency, self.receiver.channel_names)
         print("Cleanup complete.")
 
 if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="EEG data collection session")
+    parser.add_argument("--p", required=True, type=int, help="Participant number")
+    parser.add_argument("--w", required=True, type=int, help="Week number")
+    args = parser.parse_args()
+
+    file_base = f"P{args.p}_w{args.w}"
+    
     # Entry point for running the EEG data collection pipeline
-    collector = EEGDataCollector()
+    collector = EEGDataCollector(file_base)
     collector.run()

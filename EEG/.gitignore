@@ -9,3 +9,6 @@ exercise_logs/
 .env
 !analysis.ipynb
 *.html
+exercise_logs/
+eeg_data/
+eeg_markers/
