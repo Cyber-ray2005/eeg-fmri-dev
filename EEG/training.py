@@ -347,7 +347,7 @@ class Experiment:
         self._drain_server_queue()
 
         # self.display.display_loading_screen("Generating trials for Block...", font=self.display.FONT_MEDIUM)
-        for _ in range(3):
+        for iteration in range(3):
             trial_conditions = self.trial_generator.generate_trial_list_for_block()
 
             if len(trial_conditions) != self.config.TRIALS_PER_BLOCK:
@@ -364,7 +364,8 @@ class Experiment:
             
             for trial_index, condition in enumerate(motor_execution_trails, 1):
                 self._check_exit_keys()
-                global_trial_num = (block_num - 1) * self.config.NUM_MOTOR_EXECUTION_TRIALS_PER_BLOCK + trial_index
+                # Calculate global motor execution trial number: (block-1)*6*3 + (iteration-1)*6 + trial_index
+                global_trial_num = (block_num - 1) * 6 * 3 + iteration * 6 + trial_index
                 print(f"Running Motor Execution Trial {global_trial_num} for condition: {condition}")
                 presented_condition = self.run_motor_execution_trial(global_trial_num, condition)
                 self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
@@ -376,7 +377,8 @@ class Experiment:
 
             for trial_index, condition in enumerate(trial_conditions, 1):
                 self._check_exit_keys()
-                global_trial_num = (block_num - 1) * self.config.TRIALS_PER_BLOCK + trial_index
+                # Calculate global trial number: (block-1)*TRIALS_PER_BLOCK*3 + (iteration-1)*TRIALS_PER_BLOCK + trial_index
+                global_trial_num = (block_num - 1) * self.config.TRIALS_PER_BLOCK * 3 + iteration * self.config.TRIALS_PER_BLOCK + trial_index
                 presented_condition = self.run_trial(global_trial_num, condition)
                 self._handle_trial_feedback(block_num, trial_index, global_trial_num, presented_condition)
 
