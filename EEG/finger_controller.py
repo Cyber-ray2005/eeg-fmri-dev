@@ -4,15 +4,20 @@ A non-blocking library for controlling robotic finger servos via Serial UART
 
 Author: Pi Ko (pi.ko@nyu.edu)
 Date: 2025
-Version: 2.0.0
+Version: 3.1.0
 
 This library provides a simple interface to control a robotic finger servo
 through Serial UART commands. It automatically discovers the device on available
 COM ports and sends flex/reset commands.
 
 The controller communicates with the servo firmware using simple serial commands:
-- e<0-100>: Execute flex test with specified percentage
+- e<0-100>: Execute full flex test cycle (flex->unflex->reset)
+- f<0-100>: Flex to percentage (first half of execute) + auto-reset after 1s
+- u<0-100>: Unflex sequence (second half of execute) + auto-reset after 1s
 - r: Reset to default position
+
+IMPORTANT: All commands (except reset) automatically trigger a reset after 1 second
+in the firmware. This ensures the finger always returns to neutral position.
 
 Installation:
     pip install pyserial
@@ -23,11 +28,17 @@ Usage:
     # Initialize the controller (auto-discovers serial port)
     controller = FingerController()
     
-    # Execute finger movement (0-100%)
-    controller.execute_finger(50)  # Move to 50% flex
+    # Execute full cycle (0-100%)
+    controller.execute_finger(50)  # Full cycle: flex->unflex->reset
     
-    # Optional: Set custom delay between flex and reset
-    controller.set_reset_delay(2.0)  # 2 seconds delay
+    # Flex only (auto-resets after 1s)
+    controller.flex_to(75)  # Flex to 75%, holds 1s, then auto-resets
+    
+    # Unflex sequence (auto-resets after 1s)
+    controller.unflex_from(50)  # Unflex sequence, holds 1s, then auto-resets
+    
+    # Manual reset
+    controller.reset()  # Immediate return to 50% default
 """
 
 import serial
@@ -51,16 +62,21 @@ class FingerController:
     A controller class for managing robotic finger servo operations through Serial UART.
     Provides automatic device discovery on available COM ports.
     
+    IMPORTANT: The firmware automatically resets to default position 1 second after
+    any command completes. This ensures safe operation and prevents the finger from
+    staying in extreme positions.
+    
     Attributes:
-        reset_delay (float): Time delay between flex and reset commands (default: 2.5 seconds)
+        reset_delay (float): Time delay for execute_finger command (default: 2.5 seconds)
         port (str): Serial port name (e.g., 'COM3' on Windows, '/dev/ttyUSB0' on Linux)
         baud_rate (int): Serial communication baud rate (default: 115200)
         serial_conn (Serial): Active serial connection object
     
     Example:
         >>> controller = FingerController()
-        >>> controller.execute_finger(75)  # Flex finger to 75%
-        >>> controller.execute_finger(0)   # Return to rest position
+        >>> controller.flex_to(75)         # Flex to 75%, auto-resets after 1s
+        >>> controller.unflex_from(50)      # Unflex sequence, auto-resets after 1s
+        >>> controller.execute_finger(100)  # Full cycle test
     """
     
     def __init__(self, reset_delay: float = 2.5, port: Optional[str] = None,
@@ -69,7 +85,7 @@ class FingerController:
         Initialize the Finger Controller.
         
         Args:
-            reset_delay (float): Delay in seconds between flex and reset commands (default: 2.5)
+            reset_delay (float): Delay for execute_finger command (default: 2.5)
             port (Optional[str]): Specific serial port to use (default: None, auto-discover)
             baud_rate (int): Serial baud rate (default: 115200)
             auto_discover (bool): Automatically discover device on initialization (default: True)
@@ -87,7 +103,8 @@ class FingerController:
         
         # Auto-discover device if requested
         if auto_discover:
-            print("Initializing Supernumerary Finger Controller...")
+            print("Initializing Supernumerary Finger Controller v3.1...")
+            print("Note: All commands auto-reset after 1 second")
             if self.port:
                 # Use specified port
                 if self.connect_to_port(self.port):
@@ -104,7 +121,10 @@ class FingerController:
     
     def set_reset_delay(self, delay: float):
         """
-        Set the delay between flex and reset commands.
+        Set the delay for execute_finger command.
+        
+        Note: This only affects execute_finger. The flex_to and unflex_from
+        commands always auto-reset after 1 second (firmware-controlled).
         
         Args:
             delay (float): Delay in seconds (must be positive)
@@ -115,7 +135,7 @@ class FingerController:
         if delay < 0:
             raise ValueError("Reset delay must be positive")
         self.reset_delay = delay
-        print(f"Reset delay set to {delay} seconds")
+        print(f"Execute_finger delay set to {delay} seconds")
     
     def discover_and_connect(self) -> bool:
         """
@@ -197,12 +217,17 @@ class FingerController:
     
     def execute_finger(self, percentage: int) -> bool:
         """
-        Execute finger movement to specified flex percentage.
+        Execute full flex test cycle (flex->unflex->reset).
         
-        This is the main control function. It sends a flex command to the servo,
-        waits for the configured delay, then sends a reset command. All operations
-        are non-blocking - the function returns immediately after initiating the
-        command sequence.
+        This is the original complete test sequence that flexes the finger,
+        performs the unflex sequence, and returns to default position.
+        The function is non-blocking and returns immediately.
+        
+        Sequence:
+        1. Flex to target percentage
+        2. Wait (configurable delay)
+        3. Unflex to 0% with double soft-reset sequence
+        4. Return to default 50% position
         
         Args:
             percentage (int): Flex percentage (0-100)
@@ -216,11 +241,7 @@ class FingerController:
             ValueError: If percentage is not between 0 and 100
             
         Example:
-            >>> controller.execute_finger(50)  # Flex to 50%
-            True
-            >>> controller.execute_finger(100) # Full flex
-            True
-            >>> controller.execute_finger(0)   # Return to rest
+            >>> controller.execute_finger(75)  # Full test cycle at 75%
             True
         """
         # Validate input
@@ -239,83 +260,212 @@ class FingerController:
         percentage = int(percentage)
         
         # Start the command sequence in a background thread
-        # This makes the function non-blocking
         threading.Thread(
-            target=self._execute_sequence,
+            target=self._execute_full_cycle,
             args=(percentage,),
             daemon=True
         ).start()
         
         return True
     
-    def _execute_sequence(self, percentage: int):
+    def flex_to(self, percentage: int) -> bool:
         """
-        Internal method to execute the flex-wait-reset sequence.
+        Flex the finger to specified percentage (first half of execute).
+        
+        This command executes ONLY the flex portion of the full cycle.
+        The finger flexes to the target position and holds for 1 second,
+        then automatically returns to default position (firmware-controlled).
+        
+        Auto-reset: The firmware automatically resets after 1 second.
+        
+        Args:
+            percentage (int): Target flex percentage (0-100)
+                - 0: Fully extended
+                - 100: Fully flexed
+                
+        Returns:
+            bool: True if command sent successfully, False otherwise
+            
+        Raises:
+            ValueError: If percentage is not between 0 and 100
+            
+        Example:
+            >>> controller.flex_to(75)  # Flex to 75%
+            True
+            >>> # Finger flexes to 75%, holds for 1s, then auto-resets
+        """
+        # Validate input
+        if not isinstance(percentage, (int, float)):
+            raise ValueError(f"Percentage must be a number, got {type(percentage)}")
+        
+        if not 0 <= percentage <= 100:
+            raise ValueError(f"Percentage must be between 0 and 100, got {percentage}")
+        
+        # Check if device is connected
+        if not self.serial_conn or not self.serial_conn.is_open:
+            print("[ERROR] No serial connection. Run discover_and_connect() first.")
+            return False
+        
+        percentage = int(percentage)
+        
+        try:
+            with self._lock:
+                # Send flex command (first half only)
+                flex_command = f"f{percentage}\n"
+                self.serial_conn.write(flex_command.encode('utf-8'))
+                self.serial_conn.flush()
+                print(f"→ Flex to {percentage}% command sent")
+                print(f"  (Will auto-reset to 50% after 1 second)")
+                
+                # Read any response
+                time.sleep(0.1)
+                if self.serial_conn.in_waiting:
+                    response = self.serial_conn.read(self.serial_conn.in_waiting).decode('utf-8', errors='ignore')
+                    for line in response.split('\n'):
+                        if 'SERIAL CMD' in line or 'ERROR' in line:
+                            print(f"  Device: {line.strip()}")
+                
+                return True
+                
+        except Exception as e:
+            print(f"[ERROR] Failed to send flex_to command: {e}")
+            return False
+    
+    def unflex_from(self, percentage: int) -> bool:
+        """
+        Execute unflex sequence (second half of execute).
+        
+        This command executes ONLY the unflex portion of the full cycle.
+        It performs the double soft-reset unflex sequence to ensure
+        complete extension. The sequence holds for 1 second after completion,
+        then automatically returns to default position (firmware-controlled).
+        
+        Note: The percentage parameter is for reference only. The unflex
+        sequence always moves to 0% (fully extended) position.
+        
+        Auto-reset: The firmware automatically resets after 1 second.
+        
+        Sequence:
+        1. Unflex to 0%
+        2. Soft reset (keeps target)
+        3. Unflex to 0% again
+        4. Soft reset again
+        5. Hold 1 second
+        6. Auto-reset to 50%
+        
+        Args:
+            percentage (int): Reference percentage (0-100) - for logging only
+                
+        Returns:
+            bool: True if command sent successfully, False otherwise
+            
+        Raises:
+            ValueError: If percentage is not between 0 and 100
+            
+        Example:
+            >>> controller.unflex_from(75)  # Execute unflex sequence
+            True
+            >>> # Finger performs unflex sequence, holds 1s, then auto-resets
+        """
+        # Validate input
+        if not isinstance(percentage, (int, float)):
+            raise ValueError(f"Percentage must be a number, got {type(percentage)}")
+        
+        if not 0 <= percentage <= 100:
+            raise ValueError(f"Percentage must be between 0 and 100, got {percentage}")
+        
+        # Check if device is connected
+        if not self.serial_conn or not self.serial_conn.is_open:
+            print("[ERROR] No serial connection. Run discover_and_connect() first.")
+            return False
+        
+        percentage = int(percentage)
+        
+        try:
+            with self._lock:
+                # Send unflex command (second half only)
+                unflex_command = f"u{percentage}\n"
+                self.serial_conn.write(unflex_command.encode('utf-8'))
+                self.serial_conn.flush()
+                print(f"← Unflex sequence from {percentage}% initiated")
+                print(f"  (Double soft-reset sequence to 0%)")
+                print(f"  (Will auto-reset to 50% after 1 second)")
+                
+                # Read any response
+                time.sleep(0.1)
+                if self.serial_conn.in_waiting:
+                    response = self.serial_conn.read(self.serial_conn.in_waiting).decode('utf-8', errors='ignore')
+                    for line in response.split('\n'):
+                        if 'SERIAL CMD' in line or 'ERROR' in line:
+                            print(f"  Device: {line.strip()}")
+                
+                return True
+                
+        except Exception as e:
+            print(f"[ERROR] Failed to send unflex_from command: {e}")
+            return False
+    
+    def _execute_full_cycle(self, percentage: int):
+        """
+        Internal method to execute the full flex-unflex-reset cycle.
         
         This runs in a background thread to maintain non-blocking behavior.
+        Uses the 'e' command for the complete test sequence.
         
         Args:
             percentage (int): Flex percentage (0-100)
         """
         try:
             with self._lock:
-                # Send flex command via serial
-                flex_command = f"e{percentage}\n"
+                # Send execute command for full cycle
+                execute_command = f"e{percentage}\n"
                 
                 try:
-                    self.serial_conn.write(flex_command.encode('utf-8'))
+                    self.serial_conn.write(execute_command.encode('utf-8'))
                     self.serial_conn.flush()
-                    print(f"→ Flex command sent: {percentage}% (serial: {flex_command.strip()})")
-                    if(percentage == 0):
-                        self.serial_conn.write("r\n".encode('utf-8'))
-                    # Read any response (non-blocking)
-                    time.sleep(0.1)  # Give device time to respond
-                    if self.serial_conn.in_waiting:
-                        response = self.serial_conn.read(self.serial_conn.in_waiting).decode('utf-8', errors='ignore')
-                        # Parse response if needed (for debugging)
-                        for line in response.split('\n'):
-                            if 'SERIAL CMD' in line or 'ERROR' in line:
-                                print(f"  Device: {line.strip()}")
-                                
-                except Exception as e:
-                    print(f"[WARNING] Flex command may have failed: {e}")
-                    return
-            
-            # Wait for the specified delay (hardware needs time to execute)
-            print(f"  Waiting {self.reset_delay}s for movement to complete...")
-            time.sleep(self.reset_delay)
-            
-            with self._lock:
-                # Send reset command
-                reset_command = "r\n"
-                try:
-                    self.serial_conn.write(reset_command.encode('utf-8'))
-                    self.serial_conn.flush()
-                    print(f"← Reset command sent")
+                    print(f"↔ Full cycle command sent: {percentage}%")
+                    print(f"  Sequence: Flex → Unflex → Reset")
                     
                     # Read any response
                     time.sleep(0.1)
                     if self.serial_conn.in_waiting:
                         response = self.serial_conn.read(self.serial_conn.in_waiting).decode('utf-8', errors='ignore')
                         for line in response.split('\n'):
-                            if 'SERIAL CMD' in line or 'Reset' in line:
+                            if 'SERIAL CMD' in line or 'ERROR' in line:
                                 print(f"  Device: {line.strip()}")
                                 
                 except Exception as e:
-                    print(f"[WARNING] Reset command may have failed: {e}")
+                    print(f"[WARNING] Full cycle command may have failed: {e}")
+                    return
+            
+            # Wait for completion (approximately)
+            print(f"  Executing full cycle (~{self.reset_delay}s)...")
+            time.sleep(self.reset_delay)
+            print(f"  Full cycle complete")
                 
         except Exception as e:
-            print(f"[ERROR] Command sequence failed: {e}")
+            print(f"[ERROR] Full cycle sequence failed: {e}")
     
     def send_raw_command(self, command: str) -> Optional[str]:
         """
         Send a raw command to the device and get response.
         
+        This is a low-level function for sending custom commands directly
+        to the servo controller. Useful for debugging or advanced control.
+        
         Args:
             command (str): Raw command to send (without newline)
+                - 'e50': Execute full cycle at 50%
+                - 'f75': Flex to 75% (auto-resets after 1s)
+                - 'u30': Unflex sequence (auto-resets after 1s)
+                - 'r': Reset to default position
             
         Returns:
             Optional[str]: Response from device if any, None otherwise
+            
+        Example:
+            >>> response = controller.send_raw_command('f100')
+            >>> print(response)
         """
         if not self.serial_conn or not self.serial_conn.is_open:
             print("[ERROR] No serial connection")
@@ -346,10 +496,17 @@ class FingerController:
     
     def reset(self) -> bool:
         """
-        Send a reset command to return the finger to default position.
+        Send immediate reset command to return finger to default position.
+        
+        This command immediately returns the finger to the default 50% position,
+        canceling any ongoing operations including pending auto-resets.
         
         Returns:
             bool: True if command sent successfully, False otherwise
+            
+        Example:
+            >>> controller.reset()  # Immediate return to 50%
+            True
         """
         if not self.serial_conn or not self.serial_conn.is_open:
             print("[ERROR] No serial connection")
@@ -359,7 +516,7 @@ class FingerController:
             with self._lock:
                 self.serial_conn.write(b"r\n")
                 self.serial_conn.flush()
-                print("Reset command sent")
+                print("↺ Reset command sent - returning to default 50% position")
                 return True
         except Exception as e:
             print(f"[ERROR] Reset failed: {e}")
@@ -369,7 +526,12 @@ class FingerController:
         """
         Clean up resources and close connections.
         
-        Should be called when done using the controller.
+        Should be called when done using the controller. Sends a final
+        reset command before closing the connection to ensure the finger
+        returns to default position.
+        
+        Example:
+            >>> controller.cleanup()  # Clean up when done
         """
         if self.serial_conn and self.serial_conn.is_open:
             # Send final reset before closing
@@ -508,7 +670,7 @@ class FingerController:
 _global_controller = None
 
 
-def initialize(reset_delay: float = 1.0, port: Optional[str] = None,
+def initialize(reset_delay: float = 2.5, port: Optional[str] = None,
                baud_rate: int = DEFAULT_BAUD_RATE) -> FingerController:
     """
     Initialize the global finger controller.
@@ -517,7 +679,7 @@ def initialize(reset_delay: float = 1.0, port: Optional[str] = None,
     need multiple controller instances.
     
     Args:
-        reset_delay (float): Delay between flex and reset (default: 1.0)
+        reset_delay (float): Delay for execute_finger (default: 2.5)
         port (Optional[str]): Specific serial port to use (default: None, auto-discover)
         baud_rate (int): Serial baud rate (default: 115200)
         
@@ -527,7 +689,7 @@ def initialize(reset_delay: float = 1.0, port: Optional[str] = None,
     Example:
         >>> import finger_controller
         >>> finger_controller.initialize()
-        >>> finger_controller.execute_finger(50)
+        >>> finger_controller.flex_to(50)
     """
     global _global_controller
     _global_controller = FingerController(reset_delay, port=port, baud_rate=baud_rate)
@@ -536,30 +698,83 @@ def initialize(reset_delay: float = 1.0, port: Optional[str] = None,
 
 def execute_finger(percentage: int) -> bool:
     """
-    Execute finger movement using the global controller.
+    Execute full cycle using the global controller.
     
-    This is a convenience function that uses a global controller instance.
-    Will automatically initialize the controller if not already done.
+    Full cycle: flex -> unflex -> reset
     
     Args:
         percentage (int): Flex percentage (0-100)
         
     Returns:
         bool: True if successful, False otherwise
-        
-    Example:
-        >>> import finger_controller as fc
-        >>> fc.execute_finger(75)  # Auto-initializes if needed
-        True
     """
     global _global_controller
     
-    # Auto-initialize if needed
     if _global_controller is None:
         print("Auto-initializing controller...")
         _global_controller = FingerController()
     
     return _global_controller.execute_finger(percentage)
+
+
+def flex_to(percentage: int) -> bool:
+    """
+    Flex to percentage using the global controller.
+    
+    Note: Auto-resets after 1 second (firmware-controlled).
+    
+    Args:
+        percentage (int): Target flex percentage (0-100)
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    global _global_controller
+    
+    if _global_controller is None:
+        print("Auto-initializing controller...")
+        _global_controller = FingerController()
+    
+    return _global_controller.flex_to(percentage)
+
+
+def unflex_from(percentage: int) -> bool:
+    """
+    Execute unflex sequence using the global controller.
+    
+    Note: Auto-resets after 1 second (firmware-controlled).
+    
+    Args:
+        percentage (int): Reference percentage (0-100)
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    global _global_controller
+    
+    if _global_controller is None:
+        print("Auto-initializing controller...")
+        _global_controller = FingerController()
+    
+    return _global_controller.unflex_from(percentage)
+
+
+def reset() -> bool:
+    """
+    Reset to default position using the global controller.
+    
+    Immediate reset to 50% position.
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    global _global_controller
+    
+    if _global_controller is None:
+        print("Auto-initializing controller...")
+        _global_controller = FingerController()
+    
+    return _global_controller.reset()
 
 
 def cleanup():
@@ -579,18 +794,19 @@ def cleanup():
 
 def main():
     """
-    Demo/test function showing library usage.
+    Demo/test function showing library usage with auto-reset behavior.
     
     Run this file directly to test the finger controller.
     Will automatically discover the servo controller on available serial ports.
     """
     print("=" * 60)
-    print("Supernumerary Finger Controller - Demo Mode")
+    print("Supernumerary Finger Controller v3.1 - Demo Mode")
+    print("Auto-Reset Feature: All commands reset after 1 second")
     print("=" * 60)
     
     try:
         # Create controller instance
-        controller = FingerController(reset_delay=1.5)
+        controller = FingerController(reset_delay=2.5)
         
         if not controller.is_connected():
             print("\n[ERROR] No servo controller found. Please check:")
@@ -600,26 +816,47 @@ def main():
             return 1
         
         print(f"\nConnected: {controller.get_port_info()}")
-        print("\nTesting finger movements...")
+        print("\nTesting finger movements with auto-reset...")
         print("-" * 40)
         
-        # Test sequence
-        test_sequence = [
-            (0, "Rest position"),
-            (25, "Light flex"),
-            (50, "Medium flex"),
-            (75, "Strong flex"),
-            (100, "Full flex"),
-            (0, "Return to rest")
-        ]
+        # Test sequence demonstrating auto-reset behavior
+        print("\n1. FLEX TO TEST (auto-resets after 1s)")
+        controller.flex_to(100)
+        print("   Waiting for auto-reset...")
+        time.sleep(2)  # Wait for auto-reset to complete
         
-        for percentage, description in test_sequence:
-            print(f"\n{description}: {percentage}%")
-            controller.execute_finger(percentage)
-            time.sleep(3)  # Wait between commands for demo
+        print("\n2. UNFLEX SEQUENCE TEST (auto-resets after 1s)")
+        controller.unflex_from(75)
+        print("   Waiting for auto-reset...")
+        time.sleep(2)  # Wait for auto-reset to complete
+        
+        print("\n3. FULL CYCLE TEST")
+        controller.execute_finger(80)
+        print("   Executing full cycle...")
+        time.sleep(3)  # Wait for full cycle
+        
+        print("\n4. RAPID SEQUENCE (demonstrating auto-reset)")
+        print("   Flex to 50%...")
+        controller.flex_to(50)
+        time.sleep(2)  # Auto-reset happens
+        
+        print("   Flex to 75%...")
+        controller.flex_to(75)
+        time.sleep(2)  # Auto-reset happens
+        
+        print("   Unflex sequence...")
+        controller.unflex_from(100)
+        time.sleep(2)  # Auto-reset happens
+        
+        print("\n5. MANUAL RESET TEST")
+        controller.flex_to(100)
+        time.sleep(0.5)  # Before auto-reset
+        print("   Manual reset before auto-reset...")
+        controller.reset()
         
         print("\n" + "=" * 60)
         print("Demo complete!")
+        print("Note: All positions automatically reset after 1 second")
         
         # Cleanup
         controller.cleanup()
