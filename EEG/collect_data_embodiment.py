@@ -29,8 +29,9 @@ class EEGConfig:
 
         # Signal Processing Parameters
         self.FOCUS_CHANNEL_NAMES = ["C3", "C1", "CP3", "CP1"]  # Motor cortex channels (name-based)
-        # Updated focus markers to include new embodiment exercise triggers
-        self.FOCUS_MARKERS = ['S  1', 'S  2', 'S  3', 'S  4', 'S  5', 'S  6', 'S  7', 'S 20', 'S 21', 'S 22', 'S 23']
+        # Updated focus markers to include only START triggers for embodiment exercise
+        # Keep standard training onsets S 1..S 7 and embodiment STARTs S 20 (grasp) and S 21 (release)
+        self.FOCUS_MARKERS = ['S  1', 'S  2', 'S  3', 'S  4', 'S  5', 'S  6', 'S  7', 'S 20', 'S 21']
         self.BAD_CHANNELS = ['FT9', 'TP9', 'FT10', 'TP10']  # Channels to exclude from analysis
         self.LOW_CUT = 8.0 # Hz (alpha band)
         self.HIGH_CUT = 30.0 # Hz (alpha band)
@@ -387,7 +388,7 @@ class EEGDataCollector:
 
         input("Press Enter to start data collection...")
         print("Starting data collection loop (Press Ctrl+C to stop)...")
-        print("Monitoring for embodiment exercise triggers: S 20, S 21, S 22, S 23")
+        print("Monitoring for embodiment exercise triggers: S 20 (grasp start), S 21 (release start)")
 
         start_time = time.time()
         try:
@@ -527,11 +528,11 @@ class EEGDataCollector:
                         else:
                             erd_db_value = float(erd_results_db) if hasattr(erd_results_db, 'item') else erd_results_db
                     
-                    # Determine trigger type for better logging
+                    # Determine trigger type for better logging (use only START triggers)
                     trigger_type = "unknown"
-                    if pending_marker['description'] in ['S 20', 'S 21']:
+                    if pending_marker['description'] in ['S 20']:
                         trigger_type = "grasp"
-                    elif pending_marker['description'] in ['S 22', 'S 23']:
+                    elif pending_marker['description'] in ['S 21']:
                         trigger_type = "release"
                     elif pending_marker['description'] in ['S  1', 'S  2', 'S  3', 'S  4', 'S  5', 'S  6', 'S  7']:
                         trigger_type = "training"

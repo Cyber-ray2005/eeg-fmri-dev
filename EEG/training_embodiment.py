@@ -146,9 +146,7 @@ class ExperimentConfig:
         
         # New triggers for embodiment exercise
         self.TRIGGER_GRASP_START = 20
-        self.TRIGGER_GRASP_END = 21
-        self.TRIGGER_RELEASE_START = 22
-        self.TRIGGER_RELEASE_END = 23
+        self.TRIGGER_RELEASE_START = 21
         
         self.BEEP_FREQUENCY = 1000  # Frequency in Hz for the beep sound
         self.BEEP_DURATION_MS = 100  # Duration in milliseconds for the beep sound
