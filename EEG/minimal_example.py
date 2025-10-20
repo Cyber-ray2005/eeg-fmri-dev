@@ -1,13 +1,27 @@
 """
-Minimal Working Example - Supernumerary Finger Controller v3.1
-5 lines demonstrating all core functionality with 100% operations
-Note: All commands auto-reset after 1 second (firmware-controlled)
-
+Example usage of the Supernumerary Finger Controller Library
 Author: Pi Ko (pi.ko@nyu.edu)
 """
+# Step 1: Import the library
+import finger_controller as fc
+import time
 
-import finger_controller as fc, time
-fc.initialize(reset_delay=2.5)                        # Calibration: auto-discover and connect to device  
-fc.flex_to(100); time.sleep(4)                       # Flex to 100%, auto-resets after 1s (wait 4s total)
-fc.unflex_from(100); time.sleep(4)                   # Unflex sequence, auto-resets after 1s (wait 4s total)  
-fc.execute_finger(100); time.sleep(4)                # Full cycle: flex->unflex->reset at 100% (wait 4s)
+# Step 2: In the Experiment class init, calibrate the finger by setting to 0
+fc.execute_finger(0)
+time.sleep(6)
+
+
+# Original function - full cycle (flex->unflex->reset)
+fc.execute_finger(100)
+
+time.sleep(6)
+
+fc.flex_test(100)
+
+
+time.sleep(6)
+
+fc.unflex_test(100)
+
+
+time.sleep(6)
