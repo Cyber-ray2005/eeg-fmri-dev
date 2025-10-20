@@ -174,6 +174,7 @@ class EmbodimentExerciseGrasp:
         )
         
         # Show sixth finger stimulus for 3 seconds
+        # Send only START trigger for grasp using config
         self.serial_comm.send_trigger(self.config.TRIGGER_GRASP_START)
         sixth_finger_image = self.display.scaled_images["sixth"]
         self.display.display_image_stimulus(
@@ -182,20 +183,17 @@ class EmbodimentExerciseGrasp:
             (0, 0, sixth_finger_image.get_width(), sixth_finger_image.get_height())
         )
         
-        # Send grasp end trigger
-        self.serial_comm.send_trigger(self.config.TRIGGER_GRASP_END)
-        
         # Calculate ERD
-        erd_value = self.calculate_erd()
+        erd_percent, erd_db = self.calculate_erd()
         
-        if erd_value is not None and erd_value < 0:
+        if erd_percent is not None and erd_percent < 0:
             # Success: ERD is negative (desynchronization)
             if self.logger:
-                self.logger.log(f"Cycle {cycle_num}: Grasp ERD = {erd_value:.2f}% (SUCCESS)")
+                self.logger.log(f"Cycle {cycle_num}: Grasp ERD% = {erd_percent:.2f}% | ERD dB = {erd_db if erd_db is not None else 'NA'} (SUCCESS)")
             
             # TODO: Flex robotic finger
             # fc.execute_finger(100)
-            print(f"TODO: Flex robotic finger for grasp (ERD: {erd_value:.2f}%)")
+            print(f"TODO: Flex robotic finger for grasp (ERD%: {erd_percent:.2f}%, dB: {erd_db if erd_db is not None else 'NA'})")
 
             time.sleep(1.2) # Give time for the finger to flex
             
@@ -209,10 +207,10 @@ class EmbodimentExerciseGrasp:
         else:
             # Failure: ERD is positive or calculation failed
             if self.logger:
-                self.logger.log(f"Cycle {cycle_num}: Grasp ERD = {erd_value:.2f}% (FAILED)")
+                self.logger.log(f"Cycle {cycle_num}: Grasp ERD% = {erd_percent if erd_percent is not None else 'NA'} (FAILED)")
             
             self.display.display_message_screen(
-                f"Grasp attempt Unsuccessful (ERD: {erd_value:.2f}%)\n\n"
+                f"Grasp attempt Unsuccessful (ERD%: {erd_percent if erd_percent is not None else 'NA'})\n\n"
                 "Moving to next cycle...",
                 duration_ms=3000,
                 font=self.display.FONT_LARGE
@@ -262,6 +260,7 @@ class EmbodimentExerciseGrasp:
         )
         
         # Show sixth finger stimulus for 3 seconds
+        # Send only START trigger for release using config
         self.serial_comm.send_trigger(self.config.TRIGGER_RELEASE_START)
         sixth_finger_image = self.display.scaled_images["sixth"]
         self.display.display_image_stimulus(
@@ -270,29 +269,26 @@ class EmbodimentExerciseGrasp:
             (0, 0, sixth_finger_image.get_width(), sixth_finger_image.get_height())
         )
         
-        # Send release end trigger
-        self.serial_comm.send_trigger(self.config.TRIGGER_RELEASE_END)
-        
         # Calculate ERD
-        erd_value = self.calculate_erd()
+        erd_percent, erd_db = self.calculate_erd()
         
-        if erd_value is not None and erd_value < 0:
+        if erd_percent is not None and erd_percent < 0:
             # Success: ERD is negative (desynchronization)
             if self.logger:
-                self.logger.log(f"Cycle {cycle_num}: Release ERD = {erd_value:.2f}% (SUCCESS)")
+                self.logger.log(f"Cycle {cycle_num}: Release ERD% = {erd_percent:.2f}% | ERD dB = {erd_db if erd_db is not None else 'NA'} (SUCCESS)")
             
             # TODO: Extend robotic finger
             # fc.execute_finger(0)
-            print(f"TODO: Extend robotic finger for release (ERD: {erd_value:.2f}%)")
+            print(f"TODO: Extend robotic finger for release (ERD%: {erd_percent:.2f}%, dB: {erd_db if erd_db is not None else 'NA'})")
             return True
         else:
             # Failure: ERD is positive or calculation failed
             if self.logger:
-                self.logger.log(f"Cycle {cycle_num}: Release ERD = {erd_value:.2f}% (FAILED)")
+                self.logger.log(f"Cycle {cycle_num}: Release ERD% = {erd_percent if erd_percent is not None else 'NA'} (FAILED)")
             
             # TODO: Reset finger on failure
             # fc.execute_finger(0)
-            print(f"TODO: Reset finger on release failure (ERD: {erd_value:.2f}%)")
+            print(f"TODO: Reset finger on release failure (ERD%: {erd_percent if erd_percent is not None else 'NA'})")
             return False
 
     def run_release_phase_non_eeg(self, cycle_num):
@@ -307,24 +303,24 @@ class EmbodimentExerciseGrasp:
         return True
 
     def calculate_erd(self):
-        """Calculate ERD value from TCP feedback (EEG version only)."""
+        """Return tuple (erd_percent, erd_db) from TCP feedback; (None, None) if unavailable."""
         if not self.is_eeg_version or not self.tcp_client:
-            return None
+            return (None, None)
         
         try:
-            # Get latest feedback from TCP
             raw_data = self.received_data_queue.get_nowait()
             feedback = json.loads(raw_data) if raw_data else {}
-            
-            # Extract ERD value
-            erd_value_percent = feedback.get("erd_percent", 0.0)
-            erd_value_db = feedback.get("erd_db", 0.0)
-            return float(erd_value_percent, erd_value_db)
-            
-        except (queue.Empty, json.JSONDecodeError, ValueError) as e:
+            erd_value_percent = feedback.get("erd_percent", None)
+            erd_value_db = feedback.get("erd_db", None)
+            erd_p = float(erd_value_percent) if erd_value_percent is not None else 0.0
+            erd_db = float(erd_value_db) if erd_value_db is not None else 0.0
+            return (erd_p, erd_db)
+        except queue.Empty:
+            return (None, None)
+        except (json.JSONDecodeError, ValueError) as e:
             if self.logger:
                 self.logger.log(f"ERD calculation failed: {e}")
-            return None
+            return (None, None)
 
     def show_progress(self, current, total, successful):
         """Show progress after each cycle."""
