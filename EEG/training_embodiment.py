@@ -195,11 +195,11 @@ class Experiment:
     Main experiment class that manages the experiment flow, including block and trial structure,
     hardware communication, data logging, and feedback display.
     """
-    def __init__(self, file_base_name: str):
+    def __init__(self, file_base_name: str, config: ExperimentConfig = None):
         # Step 2 : In the Experiment class init, calibrate the finger by setting to 0
         fc.execute_finger(0) 
         self.file_base_name = file_base_name
-        self.config = ExperimentConfig()
+        self.config = config if config is not None else ExperimentConfig()
         self.display = PygameDisplay(self.config)
         self.serial_comm = SerialCommunication(self.config.SERIAL_PORT, self.config.BAUD_RATE)
         self.trial_generator = TrialGenerator(self.config)
@@ -575,7 +575,7 @@ if __name__ == "__main__":
         print(f"Error: Mismatch in normal finger trial counts.")
         sys.exit()
     else:
-        experiment = Experiment(file_base)
+        experiment = Experiment(file_base, config)
         try:
             experiment.run_experiment()
         except SystemExit:
