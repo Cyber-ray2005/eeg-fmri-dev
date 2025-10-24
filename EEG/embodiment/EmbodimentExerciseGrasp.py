@@ -160,12 +160,20 @@ class EmbodimentExerciseGrasp:
 
     def run_grasp_phase_eeg(self, cycle_num):
         """EEG version of grasp phase with ERD calculation."""
-        # Show fixation (blank image)
+        # Show imagery preparation notice
+        self.display.display_message_screen(
+            "Get ready to perform motor imagery\nwhen the sixth finger stimulus appears.\n\n"
+            "Press any key when ready.",
+            wait_for_key=True,
+            font=self.display.FONT_LARGE
+        )
+        
+        # Show fixation (blank image) for 2.5 seconds
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET)
         blank_image_surface = self.display.scaled_images["blank"]
         self.display.display_image_stimulus(
             blank_image_surface, 
-            2000,  # 1 second fixation
+            2500,  # 2.5 seconds fixation
             (0, 0, blank_image_surface.get_width(), blank_image_surface.get_height())
         )
         
@@ -182,16 +190,26 @@ class EmbodimentExerciseGrasp:
         # Calculate ERD
         erd_percent, erd_db = self.calculate_erd()
         
-        if erd_percent is not None and erd_percent < 0:
-            # Success: ERD is negative (desynchronization)
+        # Check for test mode override
+        if hasattr(self.config, 'TEST_MODE_EMBODIMENT') and self.config.TEST_MODE_EMBODIMENT:
+            success = True
+            erd_db_display = erd_db if erd_db is not None else 0.0
+        else:
+            success = erd_percent is not None and erd_percent < 0
+            erd_db_display = erd_db if erd_db is not None else 0.0
+        
+        if success:
+            # Success: ERD is negative (desynchronization) or test mode
             if self.logger:
-                self.logger.log(f"Cycle {cycle_num}: Grasp ERD% = {erd_percent:.2f}% | ERD dB = {erd_db if erd_db is not None else 'NA'} (SUCCESS)")
+                self.logger.log(f"Cycle {cycle_num}: Grasp ERD% = {erd_percent:.2f}% | ERD dB = {erd_db_display:.2f} (SUCCESS)")
             
-            # TODO: Flex robotic finger
+            # Flex robotic finger
             fc.flex_test(100)
             
+            # Show success display with ERD dB value
             self.display.display_message_screen(
-                "Grasp successful!\n\nMove the object now.\n\n"
+                f"#green:Grasp Successful!#\n\nERD dB: {erd_db_display:.2f}\n\n"
+                "Move the object now.\n\n"
                 "Press any key when ready to release.",
                 wait_for_key=True,
                 font=self.display.FONT_LARGE
@@ -200,12 +218,13 @@ class EmbodimentExerciseGrasp:
         else:
             # Failure: ERD is positive or calculation failed
             if self.logger:
-                self.logger.log(f"Cycle {cycle_num}: Grasp ERD% = {erd_percent if erd_percent is not None else 'NA'} (FAILED)")
+                self.logger.log(f"Cycle {cycle_num}: Grasp ERD% = {erd_percent if erd_percent is not None else 'NA'} | ERD dB = {erd_db_display:.2f} (FAILED)")
             
+            # Show failure display with ERD dB value
             self.display.display_message_screen(
-                f"Grasp attempt Unsuccessful (ERD%: {erd_percent if erd_percent is not None else 'NA'})\n\n"
+                f"#red:Grasp Unsuccessful#\n\nERD dB: {erd_db_display:.2f}\n\n"
                 "Moving to next cycle...",
-                duration_ms=3000,
+                duration_ms=2000,
                 font=self.display.FONT_LARGE
             )
             return False
@@ -215,11 +234,21 @@ class EmbodimentExerciseGrasp:
         if self.logger:
             self.logger.log(f"Cycle {cycle_num}: Executing grasp (non-EEG)")
         
-        fc.flex_test(100)
-    
-
+        # Show imagery preparation notice
         self.display.display_message_screen(
-            "Grasp executed!\n\nMove the object now.\n\n"
+            "Get ready to perform grasp action.\n\n"
+            "Press any key when ready.",
+            wait_for_key=True,
+            font=self.display.FONT_LARGE
+        )
+        
+        # Execute grasp
+        fc.flex_test(100)
+        
+        # Show success display
+        self.display.display_message_screen(
+            "#green:Grasp Executed!#\n\n"
+            "Move the object now.\n\n"
             "Press any key when ready to release.",
             wait_for_key=True,
             font=self.display.FONT_LARGE
@@ -240,12 +269,20 @@ class EmbodimentExerciseGrasp:
 
     def run_release_phase_eeg(self, cycle_num):
         """EEG version of release phase with ERD calculation."""
-        # Show fixation (blank image)
+        # Show imagery preparation notice
+        self.display.display_message_screen(
+            "Get ready to perform motor imagery\nwhen the sixth finger stimulus appears.\n\n"
+            "Press any key when ready.",
+            wait_for_key=True,
+            font=self.display.FONT_LARGE
+        )
+        
+        # Show fixation (blank image) for 2.5 seconds
         self.serial_comm.send_trigger(self.config.TRIGGER_FIXATION_ONSET)
         blank_image_surface = self.display.scaled_images["blank"]
         self.display.display_image_stimulus(
             blank_image_surface, 
-            1000,  # 1 second fixation
+            2500,  # 2.5 seconds fixation
             (0, 0, blank_image_surface.get_width(), blank_image_surface.get_height())
         )
         
@@ -262,23 +299,45 @@ class EmbodimentExerciseGrasp:
         # Calculate ERD
         erd_percent, erd_db = self.calculate_erd()
         
-        if erd_percent is not None and erd_percent < 0:
-            # Success: ERD is negative (desynchronization)
+        # Check for test mode override
+        if hasattr(self.config, 'TEST_MODE_EMBODIMENT') and self.config.TEST_MODE_EMBODIMENT:
+            success = True
+            erd_db_display = erd_db if erd_db is not None else 0.0
+        else:
+            success = erd_percent is not None and erd_percent < 0
+            erd_db_display = erd_db if erd_db is not None else 0.0
+        
+        if success:
+            # Success: ERD is negative (desynchronization) or test mode
             if self.logger:
-                self.logger.log(f"Cycle {cycle_num}: Release ERD% = {erd_percent:.2f}% | ERD dB = {erd_db if erd_db is not None else 'NA'} (SUCCESS)")
+                self.logger.log(f"Cycle {cycle_num}: Release ERD% = {erd_percent:.2f}% | ERD dB = {erd_db_display:.2f} (SUCCESS)")
             
-            # TODO: Extend robotic finger
+            # Extend robotic finger
             fc.unflex_test(100)
-            print(f"TODO: Extend robotic finger for release (ERD%: {erd_percent:.2f}%, dB: {erd_db if erd_db is not None else 'NA'})")
+            
+            # Show success display with ERD dB value
+            self.display.display_message_screen(
+                f"#green:Release Successful!#\n\nERD dB: {erd_db_display:.2f}\n\n"
+                "Cycle completed!",
+                duration_ms=2000,
+                font=self.display.FONT_LARGE
+            )
             return True
         else:
             # Failure: ERD is positive or calculation failed
             if self.logger:
-                self.logger.log(f"Cycle {cycle_num}: Release ERD% = {erd_percent if erd_percent is not None else 'NA'} (FAILED)")
+                self.logger.log(f"Cycle {cycle_num}: Release ERD% = {erd_percent if erd_percent is not None else 'NA'} | ERD dB = {erd_db_display:.2f} (FAILED)")
             
-            # TODO: Reset finger on failure
+            # Reset finger on failure
             fc.unflex_test(100)
-            print(f"TODO: Reset finger on release failure (ERD%: {erd_percent if erd_percent is not None else 'NA'})")
+            
+            # Show failure display with ERD dB value
+            self.display.display_message_screen(
+                f"#red:Release Unsuccessful#\n\nERD dB: {erd_db_display:.2f}\n\n"
+                "Moving to next cycle...",
+                duration_ms=2000,
+                font=self.display.FONT_LARGE
+            )
             return False
 
     def run_release_phase_non_eeg(self, cycle_num):
@@ -286,9 +345,24 @@ class EmbodimentExerciseGrasp:
         if self.logger:
             self.logger.log(f"Cycle {cycle_num}: Executing release (non-EEG)")
         
-        # TODO: Extend robotic finger
+        # Show imagery preparation notice
+        self.display.display_message_screen(
+            "Get ready to perform release action.\n\n"
+            "Press any key when ready.",
+            wait_for_key=True,
+            font=self.display.FONT_LARGE
+        )
+        
+        # Execute release
         fc.unflex_test(100)
-        print(f"TODO: Extend robotic finger for release (Cycle {cycle_num})")
+        
+        # Show success display
+        self.display.display_message_screen(
+            "#green:Release Executed!#\n\n"
+            "Cycle completed!",
+            duration_ms=2000,
+            font=self.display.FONT_LARGE
+        )
         return True
 
     def calculate_erd(self):

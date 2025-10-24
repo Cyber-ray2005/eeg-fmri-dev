@@ -182,6 +182,9 @@ class ExperimentConfig:
         # Number of characters to write in writing task
         self.NUMBER_OF_CHARACTERS_TO_WRITE = 5
         
+        # Test flag for embodiment exercise - if True, all imagery is successful
+        self.TEST_MODE_EMBODIMENT = False
+        
         self.TCP_HOST =  '127.0.0.1'
         self.TCP_PORT = 50000  # The port used by the server
         
@@ -551,11 +554,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="EEG training session with grasp embodiment")
     parser.add_argument("--p", required=True, type=int, help="Participant number")
     parser.add_argument("--w", required=True, type=int, help="Week number")
+    parser.add_argument("--test", action="store_true", help="Enable test mode for embodiment exercise (all imagery successful)")
     args = parser.parse_args()
 
     file_base = f"P{args.p}_w{args.w}_eeg"
     # Validate trial configuration before running
     config = ExperimentConfig()
+    # Set test mode if requested
+    if args.test:
+        config.TEST_MODE_EMBODIMENT = True
+        print("Test mode enabled: All embodiment imagery will be successful")
     expected_total_trials = (config.NUM_SIXTH_FINGER_TRIALS_PER_BLOCK +
                              (config.NUM_EACH_NORMAL_FINGER_PER_BLOCK * config.NUM_NORMAL_FINGERS) +
                              config.NUM_BLANK_TRIALS_PER_BLOCK)
