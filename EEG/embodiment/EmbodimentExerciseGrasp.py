@@ -328,9 +328,6 @@ class EmbodimentExerciseGrasp:
             if self.logger:
                 self.logger.log(f"Cycle {cycle_num}: Release ERD% = {erd_percent if erd_percent is not None else 'NA'} | ERD dB = {erd_db_display:.2f} (FAILED)")
             
-            # Reset finger on failure
-            fc.unflex_test(100)
-            
             # Show failure display with ERD dB value
             self.display.display_message_screen(
                 f"#red:Release Unsuccessful#\n\nERD dB: {erd_db_display:.2f}\n\n"
@@ -338,6 +335,8 @@ class EmbodimentExerciseGrasp:
                 duration_ms=2000,
                 font=self.display.FONT_LARGE
             )
+            # Reset finger on failure
+            fc.unflex_test(100)
             return False
 
     def run_release_phase_non_eeg(self, cycle_num):
