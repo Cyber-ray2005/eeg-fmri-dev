@@ -198,8 +198,6 @@ class ExperimentConfig:
         # Number of characters to write in writing task
         self.NUMBER_OF_CHARACTERS_TO_WRITE = 5
         
-        # TCP communication removed for non-EEG training
-        
 
 
 class Experiment:
