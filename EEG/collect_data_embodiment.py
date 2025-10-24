@@ -19,7 +19,6 @@ from ERDCalculator.ERDCalculator import ERDCalculator
 class EEGConfig:
     """
     Holds all configuration parameters for EEG data collection, processing, and broadcasting.
-    Modified to support new embodiment exercise triggers.
     """
     def __init__(self):
         # EEG Connection Parameters
@@ -29,9 +28,7 @@ class EEGConfig:
 
         # Signal Processing Parameters
         self.FOCUS_CHANNEL_NAMES = ["C3", "C1", "CP3", "CP1"]  # Motor cortex channels (name-based)
-        # Updated focus markers to include only START triggers for embodiment exercise
-        # Keep standard training onsets S 1..S 7 and embodiment STARTs S 20 (grasp) and S 21 (release)
-        self.FOCUS_MARKERS = ['S  1', 'S  2', 'S  3', 'S  4', 'S  5', 'S  6', 'S  7', 'S 20', 'S 21']
+        self.FOCUS_MARKERS = ['S  1', 'S  2', 'S  3', 'S  4', 'S  5', 'S  6', 'S  7', 'S  8', 'S 15']
         self.BAD_CHANNELS = ['FT9', 'TP9', 'FT10', 'TP10']  # Channels to exclude from analysis
         self.LOW_CUT = 8.0 # Hz (alpha band)
         self.HIGH_CUT = 30.0 # Hz (alpha band)
@@ -315,7 +312,6 @@ class DataSaver:
 class EEGDataCollector:
     """
     Orchestrates the entire EEG data collection, processing, and broadcasting pipeline.
-    Modified to support new embodiment exercise triggers.
     """
     def __init__(self, file_base_name=None):
         self.config = EEGConfig()
@@ -340,7 +336,6 @@ class EEGDataCollector:
         """
         Main loop for data collection, processing, and broadcasting.
         Handles buffer management, marker registration, and live ERD calculation.
-        Modified to support new embodiment exercise triggers.
         """
         if not self.receiver.initialize():
             return # Exit if connection fails
@@ -366,8 +361,6 @@ class EEGDataCollector:
             else:
                 print(f"Warning: Focus channel '{ch_name}' not found in clean channel list")
         
-        # Store focus channels for later use
-        self.config.FOCUS_CHANNELS = focus_channels_clean
         
         # self.data_processor = DataProcessor(self.config, self.receiver.sampling_frequency, self.receiver.channel_count)
         self.data_processor = ERDCalculator(
@@ -388,7 +381,6 @@ class EEGDataCollector:
 
         input("Press Enter to start data collection...")
         print("Starting data collection loop (Press Ctrl+C to stop)...")
-        print("Monitoring for embodiment exercise triggers: S 20 (grasp start), S 21 (release start)")
 
         start_time = time.time()
         try:
@@ -449,7 +441,6 @@ class EEGDataCollector:
         """
         Checks if enough data is available in the buffer for each pending marker,
         extracts the corresponding epoch, and performs live ERD calculation and broadcasting.
-        Modified to handle new embodiment exercise triggers.
         """
         processed_markers_this_iteration = []
         for i in range(len(self.pending_markers_to_process)):
@@ -528,29 +519,15 @@ class EEGDataCollector:
                         else:
                             erd_db_value = float(erd_results_db) if hasattr(erd_results_db, 'item') else erd_results_db
                     
-                    # Determine trigger type for better logging (use only START triggers)
-                    trigger_type = "unknown"
-                    if pending_marker['description'] in ['S 20']:
-                        trigger_type = "grasp"
-                    elif pending_marker['description'] in ['S 21']:
-                        trigger_type = "release"
-                    elif pending_marker['description'] in ['S  1', 'S  2', 'S  3', 'S  4', 'S  5', 'S  6', 'S  7']:
-                        trigger_type = "training"
-                    
                     data_to_send = {
                         "timestamp": time.time(),
                         "marker_description": pending_marker['description'],
                         "marker_stream_pos": int(marker_stream_pos),
                         "erd_percent": erd_data,
                         "erd_db": erd_db_value,
-                        "channel_names": self.config.FOCUS_CHANNEL_NAMES,
-                        "trigger_type": trigger_type
+                        "channel_names": self.config.FOCUS_CHANNEL_NAMES
                     }
                     self.broadcaster.broadcast_data(data_to_send)
-                    
-                    # Log specific information for embodiment exercise triggers
-                    if trigger_type in ["grasp", "release"]:
-                        print(f"       Embodiment Exercise {trigger_type.upper()} - ERD%: {erd_data:.2f}%")
                 else:
                     print(f"       ERD calculation for '{pending_marker['description']}' failed or resulted in None.")
                 
@@ -589,7 +566,7 @@ class EEGDataCollector:
 
 if __name__ == "__main__":
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description="EEG data collection session for embodiment exercise")
+    parser = argparse.ArgumentParser(description="EEG data collection session")
     parser.add_argument("--p", required=True, type=int, help="Participant number")
     parser.add_argument("--w", required=True, type=int, help="Week number")
     args = parser.parse_args()

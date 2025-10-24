@@ -13,6 +13,7 @@ import queue
 import json
 import threading
 from typing import Optional
+import finger_controller as fc
 
 
 class EmbodimentExerciseGrasp:
@@ -21,12 +22,15 @@ class EmbodimentExerciseGrasp:
     Supports both EEG and non-EEG versions with ERD feedback.
     """
     
-    def __init__(self, config, enable_logging=True, log_name_base=None, is_eeg_version=False, tcp_client=None, serial_comm=None):
+    def __init__(self, config, enable_logging=True, log_name_base=None, is_eeg_version=False, tcp_client=None, serial_comm=None, received_data_queue=None, stop_listener_event=None):
         self.config = config
         self.enable_logging = enable_logging
         self.is_eeg_version = is_eeg_version
         self.tcp_client = tcp_client
         self.serial_comm = serial_comm
+
+        self.received_data_queue = received_data_queue
+        self.stop_listener_event = stop_listener_event
         
         # Initialize the logger only if logging is enabled
         if self.enable_logging:
@@ -43,22 +47,20 @@ class EmbodimentExerciseGrasp:
         
         # Initialize the display
         self.display = PygameDisplay(config)
+        try:
+            self.display.load_stimulus_images()
+        except:
+            raise
         
         # EEG-specific setup
         if self.is_eeg_version:
-            self.received_data_queue = queue.Queue()
-            self.stop_listener_event = threading.Event()
-            if self.tcp_client and self.tcp_client.connect():
-                self.tcp_listener = threading.Thread(
-                    target=self.tcp_client.tcp_listener_thread,
-                    name="TCPListener",
-                    args=(self.received_data_queue, self.stop_listener_event),
-                    daemon=True
-                )
-                self.tcp_listener.start()
-            else:
-                print("Warning: TCP connection failed. Proceeding without ERD feedback.")
+            if not self.tcp_client:
+                print("Warning: No TCP Client provided. Proceeding without ERD feedback")
+                self.is_eeg_version = False
+            elif not self.received_data_queue:
+                print("Warning: No TCP Data Queue provided. Proceeding without ERD feedback")
                 self.tcp_client = None
+                self.is_eeg_version = False
 
     def run(self):
         """Main method to run the grasp embodiment exercise."""
@@ -115,12 +117,6 @@ class EmbodimentExerciseGrasp:
         
         if self.logger:
             self.logger.log(f"Grasp Embodiment Exercise finished. Successful cycles: {successful_cycles}/5")
-        
-        # Cleanup TCP connection if EEG version
-        if self.is_eeg_version and self.tcp_client:
-            self.stop_listener_event.set()
-            if hasattr(self, 'tcp_listener'):
-                self.tcp_listener.join(timeout=1.0)
 
     def run_grasp_release_cycle(self, cycle_num):
         """Run a single grasp-release cycle."""
@@ -169,7 +165,7 @@ class EmbodimentExerciseGrasp:
         blank_image_surface = self.display.scaled_images["blank"]
         self.display.display_image_stimulus(
             blank_image_surface, 
-            1000,  # 1 second fixation
+            2000,  # 1 second fixation
             (0, 0, blank_image_surface.get_width(), blank_image_surface.get_height())
         )
         
@@ -192,10 +188,7 @@ class EmbodimentExerciseGrasp:
                 self.logger.log(f"Cycle {cycle_num}: Grasp ERD% = {erd_percent:.2f}% | ERD dB = {erd_db if erd_db is not None else 'NA'} (SUCCESS)")
             
             # TODO: Flex robotic finger
-            # fc.execute_finger(100)
-            print(f"TODO: Flex robotic finger for grasp (ERD%: {erd_percent:.2f}%, dB: {erd_db if erd_db is not None else 'NA'})")
-
-            time.sleep(1.2) # Give time for the finger to flex
+            fc.flex_test(100)
             
             self.display.display_message_screen(
                 "Grasp successful!\n\nMove the object now.\n\n"
@@ -222,11 +215,8 @@ class EmbodimentExerciseGrasp:
         if self.logger:
             self.logger.log(f"Cycle {cycle_num}: Executing grasp (non-EEG)")
         
-        # TODO: Flex robotic finger
-        # fc.execute_finger(100)
-        print(f"TODO: Flex robotic finger for grasp (Cycle {cycle_num})")
-        
-        # time.sleep(1.2) # Give time for the finger to flex
+        fc.flex_test(100)
+    
 
         self.display.display_message_screen(
             "Grasp executed!\n\nMove the object now.\n\n"
@@ -278,7 +268,7 @@ class EmbodimentExerciseGrasp:
                 self.logger.log(f"Cycle {cycle_num}: Release ERD% = {erd_percent:.2f}% | ERD dB = {erd_db if erd_db is not None else 'NA'} (SUCCESS)")
             
             # TODO: Extend robotic finger
-            # fc.execute_finger(0)
+            fc.unflex_test(100)
             print(f"TODO: Extend robotic finger for release (ERD%: {erd_percent:.2f}%, dB: {erd_db if erd_db is not None else 'NA'})")
             return True
         else:
@@ -287,7 +277,7 @@ class EmbodimentExerciseGrasp:
                 self.logger.log(f"Cycle {cycle_num}: Release ERD% = {erd_percent if erd_percent is not None else 'NA'} (FAILED)")
             
             # TODO: Reset finger on failure
-            # fc.execute_finger(0)
+            fc.unflex_test(100)
             print(f"TODO: Reset finger on release failure (ERD%: {erd_percent if erd_percent is not None else 'NA'})")
             return False
 
@@ -297,9 +287,8 @@ class EmbodimentExerciseGrasp:
             self.logger.log(f"Cycle {cycle_num}: Executing release (non-EEG)")
         
         # TODO: Extend robotic finger
-        # fc.execute_finger(0)
+        fc.unflex_test(100)
         print(f"TODO: Extend robotic finger for release (Cycle {cycle_num})")
-        # Sync timings so we can extend or sleep if extension sleep doesn't affect flow
         return True
 
     def calculate_erd(self):

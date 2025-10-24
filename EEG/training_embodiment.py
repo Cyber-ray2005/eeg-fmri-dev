@@ -145,8 +145,8 @@ class ExperimentConfig:
         self.NO_TRIGGER = 12
         
         # New triggers for embodiment exercise
-        self.TRIGGER_GRASP_START = 20
-        self.TRIGGER_RELEASE_START = 21
+        self.TRIGGER_GRASP_START = 8
+        self.TRIGGER_RELEASE_START = 15
         
         self.BEEP_FREQUENCY = 1000  # Frequency in Hz for the beep sound
         self.BEEP_DURATION_MS = 100  # Duration in milliseconds for the beep sound
@@ -195,20 +195,20 @@ class Experiment:
     def __init__(self, file_base_name: str):
         # Step 2 : In the Experiment class init, calibrate the finger by setting to 0
         fc.execute_finger(0) 
+        self.file_base_name = file_base_name
         self.config = ExperimentConfig()
         self.display = PygameDisplay(self.config)
         self.serial_comm = SerialCommunication(self.config.SERIAL_PORT, self.config.BAUD_RATE)
         self.trial_generator = TrialGenerator(self.config)
         # Initialize TCP client first
         self.tcp_client = TCPClient(self.config.TCP_HOST, self.config.TCP_PORT)
-        # Initialize new grasp embodiment exercise (pre-experiment calibration/training)
-        self.embodiment_exercise = EmbodimentExerciseGrasp(self.config, enable_logging=True, log_name_base=file_base_name, is_eeg_version=True, tcp_client=self.tcp_client, serial_comm=self.serial_comm)
         # CSV data logger removed as per user request (empty files not needed)
         self.erd_logger = ERDLogger(filename=f"{file_base_name}.csv")  # Initialize ERD-specific logger
         self.er_data_queue = queue.Queue() # For potential future ER data reception
         self.erd_history = [] # Placeholder for ERD history
         self.received_data_queue = queue.Queue() # Queue to pass data from thread to main loop
         self.stop_listener_event = threading.Event() # Event to signal the listener thread to stop
+        self.embodiment_exercise = None
 
     def _close_all_connections(self):
         """
@@ -308,10 +308,10 @@ class Experiment:
         if stimulus_trigger_code is not None:
             current_image_surface = self.display.scaled_images[trial_condition+"_blue"]
             self.serial_comm.send_trigger(stimulus_trigger_code)
+            self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()))
             if trial_condition =="sixth":
                 fc.execute_finger(100)  
 
-            self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()))
 
     def _initialize_hardware_and_display(self):
         """
@@ -328,8 +328,30 @@ class Experiment:
                 daemon=True
             )
             self.tcp_listener.start()
+            from embodiment.EmbodimentExerciseGrasp import EmbodimentExerciseGrasp
+            self.embodiment_exercise = EmbodimentExerciseGrasp(
+                self.config,
+                enable_logging=True,
+                log_name_base=self.file_base_name,
+                is_eeg_version=True,
+                tcp_client=self.tcp_client,
+                serial_comm=self.serial_comm,
+                received_data_queue=self.received_data_queue,
+                stop_listener_event=self.stop_listener_event
+            )
         else:
             print("Warning: TCP connection failed. Proceeding without TCP data reception.")
+            from embodiment.EmbodimentExerciseGrasp import EmbodimentExerciseGrasp
+            self.embodiment_exercise = EmbodimentExerciseGrasp(
+                self.config,
+                enable_logging=True,
+                log_name_base=self.file_base_name,
+                is_eeg_version=False,
+                tcp_client=None,
+                serial_comm=self.serial_comm,
+                received_data_queue=None,
+                stop_listener_event=None
+            )
 
     def _show_intro_screen(self):
         """

@@ -159,8 +159,8 @@ class ExperimentConfig:
         self.NO_TRIGGER = 12
         
         # New triggers for embodiment exercise
-        self.TRIGGER_GRASP_START = 20
-        self.TRIGGER_GRASP_END = 21
+        self.TRIGGER_GRASP_START = 8
+        self.TRIGGER_GRASP_END =15
         self.TRIGGER_RELEASE_START = 22
         self.TRIGGER_RELEASE_END = 23
         
@@ -320,10 +320,9 @@ class Experiment:
         if stimulus_trigger_code is not None:
             current_image_surface = self.display.scaled_images[trial_condition+"_blue"]
             self.serial_comm.send_trigger(stimulus_trigger_code)
+            self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()))
             if trial_condition == "sixth":
                 fc.execute_finger(100)
-            self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()))
-        
         return trial_condition
 
     def _initialize_hardware_and_display(self):

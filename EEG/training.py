@@ -303,11 +303,9 @@ class Experiment:
         if stimulus_trigger_code is not None:
             current_image_surface = self.display.scaled_images[trial_condition+"_blue"]
             self.serial_comm.send_trigger(stimulus_trigger_code)
-            if trial_condition =="sixth":
-                fc.execute_finger(100)  
-
             self.display.display_image_stimulus(current_image_surface,  self.config.IMAGE_DISPLAY_DURATION_MS, (0, 0, current_image_surface.get_width(), current_image_surface.get_height()))
-
+            if trial_condition =="sixth":
+                fc.execute_finger(100)
     def _initialize_hardware_and_display(self):
         """
         Initializes serial port, loads images, and starts TCP listener thread if possible.
@@ -400,11 +398,12 @@ class Experiment:
         # Log ERD values to dedicated logger
         self.erd_logger.log_erd(global_trial_num, condition, erd_value, erd_db_value)
         
-        if condition == "sixth":
-            if erd_value < 0:
-                fc.execute_finger(100)
+
         if condition != self.config.BLANK_CONDITION_NAME:
-            self.display.display_erd_feedback_bar(erd_value, duration_ms=self.config.ERD_FEEDBACK_DURATION_MS)
+            self.display.display_erd_feedback_bar(erd_db_value*10, duration_ms=self.config.ERD_FEEDBACK_DURATION_MS)
+        if condition == "sixth":
+            if erd_db_value < 0:
+                fc.execute_finger(100)
         self.serial_comm.send_trigger(self.config.TRIGGER_SHORT_BREAK_ONSET)
         self.display.display_blank_screen(self.config.SHORT_BREAK_DURATION_MS)
 
